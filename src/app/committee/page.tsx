@@ -79,6 +79,12 @@ export default function CommitteeHome() {
   const [voteCounts, setVoteCounts] = useState<
     Record<string, { forCount: number; againstCount: number }>
   >({});
+  const [myQuestionVotes, setMyQuestionVotes] = useState<
+    Record<string, boolean>
+  >({}); // key: stage_question_id
+  const [questionVoteCounts, setQuestionVoteCounts] = useState<
+    Record<string, { forCount: number; againstCount: number; total: number }>
+  >({});
   const [suggestedByNames, setSuggestedByNames] = useState<
     Record<string, string>
   >({});
@@ -186,9 +192,7 @@ export default function CommitteeHome() {
         if (questionIds.length > 0) {
           const { data: qOpts, error: qOptErr } = await supabase
             .from("competency_question_options_stage")
-            .select(
-              "stage_question_id, option_text, is_correct, sort_order",
-            )
+            .select("stage_question_id, option_text, is_correct, sort_order")
             .in("stage_question_id", questionIds)
             .order("sort_order", { ascending: true });
           if (qOptErr) throw qOptErr;
@@ -289,6 +293,43 @@ export default function CommitteeHome() {
         if (!cancelled) {
           setMyVotes(myMap);
           setVoteCounts(countsMap);
+        }
+
+        // committee question votes: my votes + aggregate counts
+        const { data: qVotes, error: qvErr } = await supabase
+          .from("committee_question_votes")
+          .select("stage_question_id, voter_id, vote");
+        if (qvErr) throw qvErr;
+
+        const myQMap: Record<string, boolean> = {};
+        const qCounts: Record<
+          string,
+          { forCount: number; againstCount: number; total: number }
+        > = {};
+
+        (qVotes ?? []).forEach(
+          (v: {
+            stage_question_id: string;
+            voter_id: string;
+            vote: boolean;
+          }) => {
+            if (!qCounts[v.stage_question_id]) {
+              qCounts[v.stage_question_id] = {
+                forCount: 0,
+                againstCount: 0,
+                total: 0,
+              };
+            }
+            qCounts[v.stage_question_id].total += 1;
+            if (v.vote) qCounts[v.stage_question_id].forCount += 1;
+            else qCounts[v.stage_question_id].againstCount += 1;
+            if (v.voter_id === u.user?.id) myQMap[v.stage_question_id] = v.vote;
+          },
+        );
+
+        if (!cancelled) {
+          setMyQuestionVotes(myQMap);
+          setQuestionVoteCounts(qCounts);
         }
       } catch (e) {
         if (!cancelled)
@@ -611,80 +652,7 @@ export default function CommitteeHome() {
       setToast("Question proposal submitted for review.");
       setTimeout(() => setToast(null), 2200);
 
-      // refresh proposals + proposer names
-      const { data: qs } = await supabase
-        .from("competency_questions_stage")
-        .select("id, competency_id, question_text, suggested_by")
-        .order("created_at", { ascending: false });
-      const qRows = (qs ?? []) as QuestionProposal[];
-
-      const ids = qRows.map((q) => q.id);
-      const optionsByQ: Record<string, QuestionOption[]> = {};
-      if (ids.length > 0) {
-        const { data: qOpts } = await supabase
-          .from("competency_question_options_stage")
-          .select("stage_question_id, option_text, is_correct, sort_order")
-          .in("stage_question_id", ids)
-          .order("sort_order", { ascending: true });
-        (qOpts ?? []).forEach(
-          (o: {
-            stage_question_id: string;
-            option_text: string;
-            is_correct: boolean;
-          }) => {
-            if (!optionsByQ[o.stage_question_id])
-              optionsByQ[o.stage_question_id] = [];
-            optionsByQ[o.stage_question_id].push({
-              label: String.fromCharCode(
-                "A".charCodeAt(0) +
-                  (optionsByQ[o.stage_question_id]?.length ?? 0),
-              ),
-              body: o.option_text,
-              is_correct: o.is_correct,
-            });
-          },
-        );
-      }
-
-      const proposerIds = Array.from(
-        new Set(
-          [
-            ...suggested.map((r) => r.suggested_by),
-            ...qRows.map((r) => r.suggested_by),
-          ].filter((v): v is string => !!v),
-        ),
-      );
-      const namesMap: Record<string, string> = { ...suggestedByNames };
-      if (proposerIds.length > 0) {
-        const { data: proposerProfiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, first_name, last_name, email")
-          .in("id", proposerIds);
-        if (proposerProfiles) {
-          for (const p of proposerProfiles as Array<{
-            id: string;
-            full_name: string | null;
-            first_name: string | null;
-            last_name: string | null;
-            email: string | null;
-          }>) {
-            const display =
-              p.full_name ||
-              [p.first_name ?? "", p.last_name ?? ""].join(" ").trim() ||
-              p.email ||
-              "Committee member";
-            namesMap[p.id] = display;
-          }
-        }
-      }
-
-      setQuestionProposals(
-        qRows.map((q) => ({
-          ...q,
-          options: optionsByQ[q.id] ?? [],
-        })),
-      );
-      setSuggestedByNames(namesMap);
+      await refreshQuestionProposalsAndVotes();
     } catch (e) {
       setErr(
         e instanceof Error
@@ -695,6 +663,140 @@ export default function CommitteeHome() {
       );
     } finally {
       setSubmittingQuestion(false);
+    }
+  }
+
+  async function refreshQuestionProposalsAndVotes() {
+    const { data: qs, error: qsErr } = await supabase
+      .from("competency_questions_stage")
+      .select("id, competency_id, question_text, suggested_by")
+      .order("created_at", { ascending: false });
+    if (qsErr) throw qsErr;
+    const qRows = (qs ?? []) as QuestionProposal[];
+
+    const ids = qRows.map((q) => q.id);
+    const optionsByQ: Record<string, QuestionOption[]> = {};
+    if (ids.length > 0) {
+      const { data: qOpts, error: qOptErr } = await supabase
+        .from("competency_question_options_stage")
+        .select("stage_question_id, option_text, is_correct, sort_order")
+        .in("stage_question_id", ids)
+        .order("sort_order", { ascending: true });
+      if (qOptErr) throw qOptErr;
+
+      (qOpts ?? []).forEach(
+        (o: {
+          stage_question_id: string;
+          option_text: string;
+          is_correct: boolean;
+        }) => {
+          if (!optionsByQ[o.stage_question_id])
+            optionsByQ[o.stage_question_id] = [];
+          optionsByQ[o.stage_question_id].push({
+            label: String.fromCharCode(
+              "A".charCodeAt(0) +
+                (optionsByQ[o.stage_question_id]?.length ?? 0),
+            ),
+            body: o.option_text,
+            is_correct: o.is_correct,
+          });
+        },
+      );
+    }
+
+    // refresh proposer names (merge into existing map)
+    const proposerIds = Array.from(
+      new Set(
+        [
+          ...suggested.map((r) => r.suggested_by),
+          ...qRows.map((r) => r.suggested_by),
+        ].filter((v): v is string => !!v),
+      ),
+    );
+
+    const namesMap: Record<string, string> = { ...suggestedByNames };
+    if (proposerIds.length > 0) {
+      const { data: proposerProfiles, error: proposerErr } = await supabase
+        .from("profiles")
+        .select("id, full_name, first_name, last_name, email")
+        .in("id", proposerIds);
+      if (!proposerErr && proposerProfiles) {
+        for (const p of proposerProfiles as Array<{
+          id: string;
+          full_name: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+        }>) {
+          const display =
+            p.full_name ||
+            [p.first_name ?? "", p.last_name ?? ""].join(" ").trim() ||
+            p.email ||
+            "Committee member";
+          namesMap[p.id] = display;
+        }
+      }
+    }
+
+    // refresh question votes
+    const { data: qVotes, error: qvErr } = await supabase
+      .from("committee_question_votes")
+      .select("stage_question_id, voter_id, vote");
+    if (qvErr) throw qvErr;
+
+    const myQMap: Record<string, boolean> = {};
+    const qCounts: Record<
+      string,
+      { forCount: number; againstCount: number; total: number }
+    > = {};
+
+    (qVotes ?? []).forEach(
+      (v: { stage_question_id: string; voter_id: string; vote: boolean }) => {
+        if (!qCounts[v.stage_question_id]) {
+          qCounts[v.stage_question_id] = {
+            forCount: 0,
+            againstCount: 0,
+            total: 0,
+          };
+        }
+        qCounts[v.stage_question_id].total += 1;
+        if (v.vote) qCounts[v.stage_question_id].forCount += 1;
+        else qCounts[v.stage_question_id].againstCount += 1;
+        if (v.voter_id === me?.id) myQMap[v.stage_question_id] = v.vote;
+      },
+    );
+
+    setQuestionProposals(
+      qRows.map((q) => ({
+        ...q,
+        options: optionsByQ[q.id] ?? [],
+      })),
+    );
+    setSuggestedByNames(namesMap);
+    setMyQuestionVotes(myQMap);
+    setQuestionVoteCounts(qCounts);
+  }
+
+  async function handleQuestionVote(stageQuestionId: string, value: boolean) {
+    if (!me?.id) return;
+    try {
+      setErr(null);
+      const { error } = await supabase.rpc("committee_vote_on_question", {
+        p_stage_question_id: stageQuestionId,
+        p_vote: value,
+      });
+      if (error) throw error;
+
+      // Refresh; approved questions may disappear if auto-merged by RPC
+      await refreshQuestionProposalsAndVotes();
+    } catch (e) {
+      setErr(
+        e instanceof Error
+          ? e.message
+          : typeof e === "object"
+            ? JSON.stringify(e)
+            : String(e),
+      );
     }
   }
 
@@ -969,6 +1071,12 @@ export default function CommitteeHome() {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted)]">
                     Suggested by
                   </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted)]">
+                    Vote
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted)]">
+                    Votes
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1051,6 +1159,68 @@ export default function CommitteeHome() {
                           ? (suggestedByNames[q.suggested_by] ??
                             "Committee member")
                           : "Committee member"}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleQuestionVote(q.id, true)}
+                            className={cls(
+                              "h-8 w-8 rounded-full grid place-items-center text-white transition",
+                              myQuestionVotes[q.id] === true
+                                ? "bg-[var(--ok)]"
+                                : "bg-[var(--ok)]/40 hover:bg-[var(--ok)]",
+                            )}
+                            title="Approve question"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => handleQuestionVote(q.id, false)}
+                            className={cls(
+                              "h-8 w-8 rounded-full grid place-items-center text-white transition",
+                              myQuestionVotes[q.id] === false
+                                ? "bg-[var(--err)]"
+                                : "bg-[var(--err)]/40 hover:bg-[var(--err)]",
+                            )}
+                            title="Reject question"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-middle text-xs text-[var(--muted)] whitespace-nowrap w-40">
+                        {(() => {
+                          const counts = questionVoteCounts[q.id] ?? {
+                            forCount: 0,
+                            againstCount: 0,
+                            total: 0,
+                          };
+                          const pct =
+                            counts.total > 0
+                              ? Math.round(
+                                  (counts.forCount / counts.total) * 100,
+                                )
+                              : 0;
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1 text-[var(--ok)]">
+                                  ✓ {counts.forCount}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[var(--err)]">
+                                  ✕ {counts.againstCount}
+                                </span>
+                                <span className="text-[var(--muted)]">
+                                  ({counts.total} total)
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-[var(--muted)]">
+                                Approval: {pct}% (auto-merge when ≥50% and ≥4
+                                votes)
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -1430,7 +1600,7 @@ export default function CommitteeHome() {
         <div className="fixed inset-x-0 bottom-6 z-50 grid place-items-center">
           <div
             role="status"
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px[3] py-2 text-sm shadow-lg"
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm shadow-lg"
           >
             {toast}
           </div>
