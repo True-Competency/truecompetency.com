@@ -32,7 +32,7 @@ type Option = {
 type Answer = {
   student_id: string;
   question_id: string;
-  is_correct: boolean | null; // MCQ -> true/false, long-answer -> null
+  is_correct: boolean | null; // MCQ only (backend enforces selected_option_id)
   answered_at: string;
 };
 
@@ -79,7 +79,7 @@ export default function TraineeCompetencyPage() {
   const total = questions.length;
   const answeredCount = useMemo(
     () => Object.values(answers).filter((a) => a?.is_correct === true).length,
-    [answers]
+    [answers],
   );
   const pct = total ? Math.round((answeredCount / total) * 100) : 0;
 
@@ -97,7 +97,7 @@ export default function TraineeCompetencyPage() {
         setUserId(uid);
         if (!uid) {
           router.replace(
-            `/signin?redirect=/trainee/competency/${competencyId}`
+            `/signin?redirect=/trainee/competency/${competencyId}`,
           );
           return;
         }
@@ -168,8 +168,8 @@ export default function TraineeCompetencyPage() {
           e instanceof Error
             ? e.message
             : typeof e === "string"
-            ? e
-            : "Something went wrong";
+              ? e
+              : "Something went wrong";
         setErr(msg);
       } finally {
         if (!cancelled) setLoading(false);
@@ -211,7 +211,7 @@ export default function TraineeCompetencyPage() {
           selected_option_id: selected, // DB trigger computes is_correct
           answered_at: new Date().toISOString(),
         },
-        { onConflict: "student_id,question_id" }
+        { onConflict: "student_id,question_id" },
       );
       if (error) throw error;
 
@@ -238,8 +238,8 @@ export default function TraineeCompetencyPage() {
         e instanceof Error
           ? e.message
           : typeof e === "string"
-          ? e
-          : "Failed to submit answer";
+            ? e
+            : "Failed to submit answer";
       setErr(msg);
     } finally {
       setSavingQ(null);
@@ -358,12 +358,12 @@ export default function TraineeCompetencyPage() {
                               borderColor: "#34d399",
                             }
                           : isWrong
-                          ? {
-                              background: "#fb7185",
-                              color: "#0b0b0b",
-                              borderColor: "#fb7185",
-                            }
-                          : { borderColor: BORDER, color: muted(35) }
+                            ? {
+                                background: "#fb7185",
+                                color: "#0b0b0b",
+                                borderColor: "#fb7185",
+                              }
+                            : { borderColor: BORDER, color: muted(35) }
                       }
                     >
                       {isCorrect ? "Correct" : isWrong ? "Wrong" : "Unanswered"}
@@ -439,21 +439,18 @@ export default function TraineeCompetencyPage() {
                         </div>
                       </div>
                     ) : (
-                      // --- Long-answer placeholder ---
-                      <div className="space-y-2">
-                        <textarea
-                          className="w-full min-h-24 rounded-lg p-3 outline-none"
-                          placeholder="Type your answer…"
-                          disabled
-                          style={{
-                            border: `1px solid ${BORDER}`,
-                            background: SURFACE,
-                            color: FG,
-                          }}
-                        />
-                        <div className="text-xs" style={{ color: muted(50) }}>
-                          (Long-answer grading to be implemented)
-                        </div>
+                      // --- MCQ only: options not configured ---
+                      <div
+                        className="rounded-lg p-3 text-sm"
+                        style={{
+                          border: `1px solid ${BORDER}`,
+                          background:
+                            "color-mix(in srgb, var(--foreground) 4%, transparent 96%)",
+                          color: muted(40),
+                        }}
+                      >
+                        This question is not available yet (no answer options
+                        configured).
                       </div>
                     )}
                   </div>
@@ -462,11 +459,7 @@ export default function TraineeCompetencyPage() {
                   {a && (
                     <div className="mt-3 text-xs" style={{ color: muted(50) }}>
                       Saved {new Date(a.answered_at).toLocaleString()} •{" "}
-                      {a.is_correct === null
-                        ? "Awaiting grading"
-                        : a.is_correct
-                        ? "Correct"
-                        : "Wrong"}
+                      {a.is_correct ? "Correct" : "Wrong"}
                     </div>
                   )}
                 </article>
