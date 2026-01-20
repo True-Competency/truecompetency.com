@@ -24,7 +24,6 @@ type Question = {
 type Option = {
   id: string;
   question_id: string;
-  label: string; // "A" | "B" | ...
   body: string;
   is_correct: boolean; // never shown to trainee
 };
@@ -50,6 +49,15 @@ const muted = (ratio = 55) =>
   `color-mix(in srgb, var(--foreground) ${
     100 - ratio
   }%, transparent ${ratio}%)`;
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 /* --------------------- Page ---------------------- */
 export default function TraineeCompetencyPage() {
@@ -130,9 +138,8 @@ export default function TraineeCompetencyPage() {
           const ids = list.map((q) => q.id);
           const { data: opts, error: oerr } = await supabase
             .from("question_options")
-            .select("id, question_id, label, body, is_correct")
+            .select("id, question_id, body, is_correct")
             .in("question_id", ids)
-            .order("label", { ascending: true })
             .returns<Option[]>();
           if (oerr) throw oerr;
 
@@ -141,6 +148,12 @@ export default function TraineeCompetencyPage() {
             if (!byQ[o.question_id]) byQ[o.question_id] = [];
             byQ[o.question_id].push(o);
           });
+
+          // randomize display order per question (presentation-only)
+          Object.keys(byQ).forEach((qid) => {
+            byQ[qid] = shuffle(byQ[qid]);
+          });
+
           setOptionsByQ(byQ);
         } else {
           setOptionsByQ({});
@@ -396,12 +409,6 @@ export default function TraineeCompetencyPage() {
                               }
                             />
                             <div>
-                              <div
-                                className="text-xs"
-                                style={{ color: muted(55) }}
-                              >
-                                {o.label}
-                              </div>
                               <div className="text-sm" style={{ color: FG }}>
                                 {o.body}
                               </div>
