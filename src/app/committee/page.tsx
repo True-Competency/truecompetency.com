@@ -121,52 +121,6 @@ export default function CommitteeHome() {
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Temporary Debug
-  async function debugProfileVisibility() {
-    const { data: u, error: uErr } = await supabase.auth.getUser();
-    if (uErr) {
-      alert("auth error: " + uErr.message);
-      return;
-    }
-    const uid = u.user?.id;
-    if (!uid) {
-      alert("no auth uid");
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .eq("id", uid)
-      .maybeSingle();
-
-    alert(
-      JSON.stringify(
-        {
-          auth_uid: uid,
-          profile_row: data,
-          profile_error: error?.message ?? null,
-        },
-        null,
-        2,
-      ),
-    );
-  }
-
-  async function debugRlsContext() {
-    const { data: u } = await supabase.auth.getUser();
-    const uid = u.user?.id;
-
-    const { data, error } = await supabase.rpc("debug_try_insert_cqs", {
-      p_competency_id: "1f0ac773-9282-4367-a20f-44fb447db9ca",
-      p_question_text: "debug insert attempt",
-      p_suggested_by: uid,
-    });
-
-    alert(JSON.stringify({ data, error }, null, 2));
-  }
-  // Temporary Debug End
-
   // LOAD DATA
   useEffect(() => {
     let cancelled = false;
@@ -912,20 +866,6 @@ export default function CommitteeHome() {
             >
               Propose test question
             </button>
-            {/* Temporary Debug Button */}
-            <button
-              onClick={debugProfileVisibility}
-              className="rounded-xl px-3 py-2 text-xs border border-[var(--border)]"
-            >
-              Debug profile
-            </button>
-            <button
-              onClick={debugRlsContext}
-              className="rounded-xl px-3 py-2 text-xs border border-[var(--border)]"
-            >
-              Debug RLS
-            </button>
-            {/* Temporary Debug Button End */}
           </div>
         </div>
       </section>
