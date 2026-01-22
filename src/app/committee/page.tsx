@@ -152,6 +152,11 @@ export default function CommitteeHome() {
       ),
     );
   }
+
+  async function debugRlsContext() {
+    const { data, error } = await supabase.rpc("debug_rls_context");
+    alert(JSON.stringify({ data, error }, null, 2));
+  }
   // Temporary Debug End
 
   // LOAD DATA
@@ -913,6 +918,12 @@ export default function CommitteeHome() {
               className="rounded-xl px-3 py-2 text-xs border border-[var(--border)]"
             >
               Debug profile
+            </button>
+            <button
+              onClick={debugRlsContext}
+              className="rounded-xl px-3 py-2 text-xs border border-[var(--border)]"
+            >
+              Debug RLS
             </button>
             {/* Temporary Debug Button End */}
           </div>
