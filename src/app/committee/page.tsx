@@ -154,7 +154,11 @@ export default function CommitteeHome() {
   }
 
   async function debugRlsContext() {
-    const { data, error } = await supabase.rpc("debug_rls_context_invoker");
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    const { data, error } = await supabase.rpc("debug_cqs_insert_check", {
+      p_suggested_by: uid,
+    });
     alert(JSON.stringify({ data, error }, null, 2));
   }
   // Temporary Debug End
