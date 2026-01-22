@@ -121,6 +121,39 @@ export default function CommitteeHome() {
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Temporary Debug
+  async function debugProfileVisibility() {
+    const { data: u, error: uErr } = await supabase.auth.getUser();
+    if (uErr) {
+      alert("auth error: " + uErr.message);
+      return;
+    }
+    const uid = u.user?.id;
+    if (!uid) {
+      alert("no auth uid");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("id", uid)
+      .maybeSingle();
+
+    alert(
+      JSON.stringify(
+        {
+          auth_uid: uid,
+          profile_row: data,
+          profile_error: error?.message ?? null,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  // Temporary Debug End
+
   // LOAD DATA
   useEffect(() => {
     let cancelled = false;
@@ -874,6 +907,14 @@ export default function CommitteeHome() {
             >
               Propose test question
             </button>
+            {/* Temporary Debug Button */}
+            <button
+              onClick={debugProfileVisibility}
+              className="rounded-xl px-3 py-2 text-xs border border-[var(--border)]"
+            >
+              Debug profile
+            </button>
+            {/* Temporary Debug Button End */}
           </div>
         </div>
       </section>
