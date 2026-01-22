@@ -156,9 +156,13 @@ export default function CommitteeHome() {
   async function debugRlsContext() {
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id;
-    const { data, error } = await supabase.rpc("debug_cqs_insert_check", {
+
+    const { data, error } = await supabase.rpc("debug_try_insert_cqs", {
+      p_competency_id: "1f0ac773-9282-4367-a20f-44fb447db9ca",
+      p_question_text: "debug insert attempt",
       p_suggested_by: uid,
     });
+
     alert(JSON.stringify({ data, error }, null, 2));
   }
   // Temporary Debug End
