@@ -692,29 +692,21 @@ export default function CommitteeHome() {
       if (!cleanedOptions.some((o) => o.is_correct)) {
         cleanedOptions[0] = { ...cleanedOptions[0], is_correct: true };
       }
-      const { data: inserted, error } = await supabase
-        .from("competency_questions_stage")
-        .insert({
-          competency_id: compId,
-          question_text: prompt,
-          suggested_by: uid,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      const newId = inserted?.id as string;
-
-      const { error: optErr } = await supabase
-        .from("competency_question_options_stage")
-        .insert(
-          cleanedOptions.map((o, idx) => ({
-            stage_question_id: newId,
-            option_text: o.body,
-            is_correct: o.is_correct,
-            sort_order: idx,
-          })),
-        );
-      if (optErr) throw optErr;
+      // Use a SECURITY DEFINER RPC to avoid client-side writes to RLS-protected tables
+      // and to prevent spoofing `suggested_by`.
+      const correctIdx = cleanedOptions.findIndex((o) => o.is_correct);
+      const { data: newId, error: rpcErr } = await supabase.rpc(
+        "committee_propose_question",
+        {
+          p_competency_id: compId,
+          p_question_text: prompt,
+          p_options: cleanedOptions.map((o) => o.body),
+          // 1-based index for SQL side
+          p_correct_index: (correctIdx >= 0 ? correctIdx : 0) + 1,
+        },
+      );
+      if (rpcErr) throw rpcErr;
+      if (!newId) throw new Error("Failed to create question proposal.");
 
       setQuestionModalOpen(false);
       resetQuestionForm(compId);
