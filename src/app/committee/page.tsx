@@ -154,7 +154,7 @@ export default function CommitteeHome() {
   }
 
   async function debugRlsContext() {
-    const { data, error } = await supabase.rpc("debug_rls_context");
+    const { data, error } = await supabase.rpc("debug_rls_context_invoker");
     alert(JSON.stringify({ data, error }, null, 2));
   }
   // Temporary Debug End
