@@ -510,12 +510,24 @@ export default function CommitteeHome() {
       setErr(null);
       const nameTrim = name.trim();
       if (!nameTrim) throw new Error("Please enter a competency name.");
+      const { data: u2, error: u2Err } = await supabase.auth.getUser();
+      if (u2Err) throw u2Err;
+      const uid = u2.user?.id;
+      if (!uid) throw new Error("Please sign in again.");
+
+      // Deterministic sanity check: profile id should match auth uid
+      if (me?.id && me.id !== uid) {
+        throw new Error(
+          `Session mismatch: profile id (${me.id}) does not match auth uid (${uid}). Please sign out and sign in again.`,
+        );
+      }
+
       const { error } = await supabase.from("competencies_stage").insert({
         name: nameTrim,
         difficulty,
         tags: selectedTags,
         justification: proposeReason.trim() || null,
-        suggested_by: me?.id ?? null,
+        suggested_by: uid,
       });
       if (error) throw error;
       setProposeOpen(false);
@@ -609,7 +621,18 @@ export default function CommitteeHome() {
       setSubmittingQuestion(true);
       setErr(null);
       const compId = questionCompetencyId.trim();
-      if (!me?.id) throw new Error("Please sign in again.");
+      const { data: u2, error: u2Err } = await supabase.auth.getUser();
+      if (u2Err) throw u2Err;
+      const uid = u2.user?.id;
+      if (!uid) throw new Error("Please sign in again.");
+
+      // Deterministic sanity check: profile id should match auth uid
+      if (me?.id && me.id !== uid) {
+        throw new Error(
+          `Session mismatch: profile id (${me.id}) does not match auth uid (${uid}). Please sign out and sign in again.`,
+        );
+      }
+
       const prompt = questionBody.trim();
       if (!compId) throw new Error("Please choose a competency.");
       if (!prompt) throw new Error("Please enter the question text.");
@@ -628,7 +651,7 @@ export default function CommitteeHome() {
         .insert({
           competency_id: compId,
           question_text: prompt,
-          suggested_by: me.id,
+          suggested_by: uid,
         })
         .select("id")
         .single();
