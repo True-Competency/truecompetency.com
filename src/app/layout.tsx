@@ -5,6 +5,8 @@ import { Inter, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,6 +45,8 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
+            <Analytics />
+            <SpeedInsights />
           </div>
         </ThemeProvider>
       </body>
