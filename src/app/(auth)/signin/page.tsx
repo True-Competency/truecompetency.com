@@ -321,11 +321,16 @@ export default function SignInPage() {
           if (insertErr) {
             // If a row already exists (e.g., a trigger or a parallel process inserted it),
             // update non-role fields; set role only if it's currently NULL.
+
+            // A profile row may not exist yet on first signup (timing/triggers/RLS). Do NOT use .single().
+            // Ensure it exists, then fetch with maybeSingle().
+            await ensureProfile(supabase);
+
             const { data: profRow, error: selErr } = await supabase
               .from("profiles")
               .select("role")
               .eq("id", id)
-              .single();
+              .maybeSingle();
             if (selErr) throw selErr;
 
             const updatePayload: Record<string, string | null | Role> = {
@@ -653,8 +658,8 @@ export default function SignInPage() {
                   {loading
                     ? "Please wait…"
                     : mode === "signup"
-                    ? "Create Account"
-                    : "Sign In"}
+                      ? "Create Account"
+                      : "Sign In"}
                 </span>
                 <span
                   aria-hidden
