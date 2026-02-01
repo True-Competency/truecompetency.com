@@ -7,6 +7,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+const IS_STAGING =
+  process.env.NEXT_PUBLIC_ENV === "staging" ||
+  process.env.NEXT_PUBLIC_ENV === "development";
+
 type Props = {
   transparent?: boolean;
   hideProfileMenu?: boolean;
@@ -114,6 +118,23 @@ export default function Header({
             True Competency
           </span>
         </Link>
+        {IS_STAGING && (
+          <span
+            className="
+              ml-3 inline-flex items-center gap-1.5
+              rounded-full px-3 py-1
+              text-[12px] font-bold tracking-wide
+              border-2 border-[var(--err)]
+              bg-[color:var(--err)]
+              text-white
+              shadow-[0_0_0_3px_color-mix(in_oklab,var(--err)_25%,transparent)]
+              animate-pulse
+            "
+            title="STAGING / TEST ENVIRONMENT — NOT PRODUCTION"
+          >
+            STAGING - TESTING - DEVELOPMENT
+          </span>
+        )}
 
         {/* Right: Compact profile menu */}
         {hideProfileMenu ? (
