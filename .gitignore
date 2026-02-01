@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 backups/
+
+# Local DB export artifacts
+*.csv
+db/exports/
+supabase/seed/*.csv
