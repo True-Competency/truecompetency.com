@@ -26,12 +26,11 @@ function RoleChip({
       type="button"
       onClick={onClick}
       className={[
-        "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-        "backdrop-blur-sm",
-        "hover:scale-[1.08] active:scale-[0.98]",
+        "px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all",
+        "hover:scale-[1.04] active:scale-[0.98]",
         active
-          ? "bg-[var(--accent)] text-white border-transparent shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_20%,transparent)]"
-          : "bg-[color:var(--surface)]/70 text-[var(--foreground)]/85 border-[var(--border)] hover:bg-[var(--surface)]",
+          ? "bg-[var(--accent)] text-white border-transparent shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_20%,transparent)]"
+          : "bg-[var(--surface)] text-[var(--foreground)]/80 border-[var(--border)] hover:border-[color:var(--accent)]/40",
       ].join(" ")}
     >
       {label.charAt(0).toUpperCase() + label.slice(1)}
@@ -58,31 +57,24 @@ function Field({
 }) {
   return (
     <div className="group">
-      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
+      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]/90">
         {label} {required ? <span className="text-red-500">*</span> : null}
       </label>
-      <div
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required={required}
         className={[
-          "relative rounded-xl border bg-[var(--field)] border-[var(--border)]",
-          "focus-within:border-[color:var(--accent)]",
-          "transition-colors",
+          "w-full rounded-xl border px-3.5 py-2.5 outline-none",
+          "bg-[var(--field)] text-[var(--foreground)] border-[var(--border)]",
+          "placeholder:[color:var(--muted)]",
+          "focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_12%,transparent)]",
+          "transition-all",
         ].join(" ")}
-      >
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          required={required}
-          className={[
-            "w-full rounded-xl px-3 py-2.5 outline-none",
-            "bg-transparent text-[var(--foreground)]",
-            "placeholder:[color:var(--muted)]",
-          ].join(" ")}
-        />
-        <span className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-[2px] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity glow-accent" />
-      </div>
+      />
     </div>
   );
 }
@@ -105,16 +97,10 @@ function PasswordField({
   const [show, setShow] = useState(false);
   return (
     <div className="group">
-      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
+      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]/90">
         {label}
       </label>
-      <div
-        className={[
-          "relative rounded-xl border bg-[var(--field)] border-[var(--border)]",
-          "focus-within:border-[color:var(--accent)]",
-          "transition-colors",
-        ].join(" ")}
-      >
+      <div className="relative">
         <input
           type={show ? "text" : "password"}
           value={value}
@@ -123,16 +109,18 @@ function PasswordField({
           autoComplete={autoComplete}
           required={required}
           className={[
-            "w-full rounded-xl pl-3 pr-10 py-2.5 outline-none",
-            "bg-transparent text-[var(--foreground)]",
+            "w-full rounded-xl border pl-3.5 pr-10 py-2.5 outline-none",
+            "bg-[var(--field)] text-[var(--foreground)] border-[var(--border)]",
             "placeholder:[color:var(--muted)]",
+            "focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_12%,transparent)]",
+            "transition-all",
           ].join(" ")}
         />
         <button
           type="button"
           aria-label={show ? "Hide password" : "Show password"}
           onClick={() => setShow((s) => !s)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]/80 hover:bg-[var(--field)] transition-transform hover:scale-[1.08] active:scale-[0.98]"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
         >
           {show ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -163,10 +151,28 @@ function PasswordField({
             </svg>
           )}
         </button>
-
-        <span className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-[2px] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity glow-accent" />
       </div>
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      className="mt-0.5 shrink-0 text-[var(--accent)]"
+    >
+      <path
+        d="M20 6L9 17l-5-5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -196,6 +202,12 @@ const ROLE_INFO: Record<Role, { title: string; points: string[] }> = {
     ],
   },
 };
+
+const FEATURES = [
+  "Structured competency evaluations",
+  "Evidence collection & case tracking",
+  "Transparent progress for all stakeholders",
+];
 
 /* ---------------- page ---------------- */
 export default function SignInPage() {
@@ -395,142 +407,176 @@ export default function SignInPage() {
   }
 
   return (
-    <div
-      className={[
-        "relative min-h-[100dvh] overflow-hidden",
-        "bg-gradient-to-b from-[#EEF4FF] to-white dark:from-[var(--background)] dark:to-[var(--background)]",
-        "text-[var(--foreground)]",
-      ].join(" ")}
-    >
-      {/* ambient background */}
+    <div className="relative flex min-h-[100dvh] text-[var(--foreground)]">
+      {/* ===== LEFT PANEL — Branding ===== */}
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.25] blur-3xl"
+        className={[
+          "hidden lg:flex lg:w-[44%] flex-col justify-between",
+          "relative overflow-hidden",
+          "bg-gradient-to-br from-[color:var(--accent)]/[0.06] via-[color:var(--accent)]/[0.03] to-transparent",
+          "dark:from-[color:var(--accent)]/[0.08] dark:via-[color:var(--accent)]/[0.03] dark:to-transparent",
+          "border-r border-[var(--border)]",
+        ].join(" ")}
       >
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[color:var(--accent)]/40 animate-float-slow" />
-        <div className="absolute top-1/3 -right-10 h-80 w-80 rounded-full bg-[color:var(--accent)]/25 animate-float-slower" />
-      </div>
-      <div
-        aria-hidden
-        className="bg-grid pointer-events-none absolute inset-0 opacity-60 dark:opacity-25"
-      />
-      <div
-        aria-hidden
-        className="bg-noise pointer-events-none absolute inset-0 opacity-[0.06]"
-      />
+        {/* Subtle radial glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-[color:var(--accent)]/[0.08] blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[color:var(--accent)]/[0.06] blur-3xl"
+        />
 
-      <div className="relative mx-auto max-w-5xl px-4 py-12 md:py-16">
-        {/* Brand */}
-        <div className="mx-auto mb-8 flex flex-col items-center">
+        {/* Content */}
+        <div className="relative z-10 flex flex-1 flex-col justify-center px-10 xl:px-14">
+          {/* Logo + title */}
+          <div className="mb-10">
+            <Image
+              src="/TC_Logo.png"
+              alt="True Competency"
+              width={72}
+              height={72}
+              priority
+              className="mb-4"
+            />
+            <h1 className="font-heading text-2xl font-bold tracking-tight text-[var(--foreground)]">
+              True Competency
+            </h1>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              TCIP APSC IVUS Competency Platform
+            </p>
+          </div>
+
+          {/* Accent divider */}
+          <div className="mb-8 h-px w-16 bg-[color:var(--accent)]/50" />
+
+          {/* Context-dependent content */}
+          {mode === "signup" ? (
+            <div className="space-y-4">
+              <h2 className="font-heading text-base font-semibold text-[var(--foreground)]">
+                {roleInfo.title}
+              </h2>
+              <ul className="space-y-3">
+                {roleInfo.points.map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm text-[var(--foreground)]/80">
+                    <CheckIcon />
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm leading-relaxed text-[var(--foreground)]/70">
+                A modern training platform for interventional cardiology —
+                structured evaluations, evidence collection, and transparent
+                progress tracking for trainees, instructors, and committees.
+              </p>
+              <ul className="space-y-3">
+                {FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-[var(--foreground)]/80">
+                    <CheckIcon />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Partner logos at bottom */}
+        <div className="relative z-10 border-t border-[var(--border)] px-10 py-6 xl:px-14">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+            In partnership with
+          </p>
+          <div className="flex items-center gap-8">
+            <Image
+              src="/APSC_Logo.png"
+              alt="Asian Pacific Society of Cardiology"
+              width={160}
+              height={160}
+              className="h-14 w-auto object-contain opacity-80"
+            />
+            <Image
+              src={tcipLogoSrc}
+              alt="TCIP Program"
+              width={160}
+              height={160}
+              className="h-14 w-auto object-contain opacity-80"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ===== RIGHT PANEL — Form ===== */}
+      <div className="flex flex-1 flex-col bg-[var(--background)]">
+        {/* Mobile header (shown only on < lg) */}
+        <div className="flex items-center gap-3 border-b border-[var(--border)] px-6 py-4 lg:hidden">
           <Image
             src="/TC_Logo.png"
             alt="True Competency"
-            width={120}
-            height={120}
+            width={36}
+            height={36}
             priority
-            className="mb-2 drop-shadow-[0_8px_24px_color-mix(in_oklab,var(--accent)_35%,transparent)]"
           />
-          <h1 className="text-center text-3xl font-semibold tracking-tight text-[var(--accent)]">
-            True Competency
-          </h1>
-          <p className="mt-1 text-center text-sm text-[var(--muted)]">
-            TCIP APSC IVUS Competency Platform
-          </p>
-          <span className="mt-2 inline-block rounded-full border px-3 py-1 text-xs border-[var(--border)] text-[var(--foreground)]/80 backdrop-blur-sm">
-            Medical Training Portal
-          </span>
+          <div>
+            <p className="font-heading text-sm font-bold text-[var(--foreground)]">
+              True Competency
+            </p>
+            <p className="text-xs text-[var(--muted)]">
+              TCIP APSC IVUS Platform
+            </p>
+          </div>
         </div>
 
-        {/* Shell */}
-        <div
-          className={[
-            "relative mx-auto grid max-w-4xl gap-6 rounded-3xl p-6 md:grid-cols-2 md:p-8",
-            "border border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-xl",
-            "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_40px_color-mix(in_oklab,var(--accent)_18%,transparent)]",
-          ].join(" ")}
-        >
-          {/* LEFT: copy */}
-          <div className="relative">
-            <div className="sticky top-8 space-y-5">
-              {mode === "signup" ? (
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                  <div className="h-1 w-28 rounded-full bg-[color:var(--accent)]/70" />
-                  <h2 className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-                    {roleInfo.title}
-                  </h2>
-                  <ul className="mt-2 space-y-2 text-sm text-[var(--foreground)]/90">
-                    {roleInfo.points.map((p) => (
-                      <li key={p}>• {p}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <>
-                  <h2 className="text-xl font-semibold text-[var(--foreground)]">
-                    What is True Competency?
-                  </h2>
-                  <p className="text-sm leading-6 text-[var(--muted)]">
-                    A modern training platform for interventional cardiology —
-                    structured evaluations, evidence collection, and transparent
-                    progress tracking for trainees, instructors, and committees.
-                  </p>
-                  <div className="mt-6 flex items-center gap-8 flex-wrap">
-                    <Image
-                      src="/APSC_Logo.png"
-                      alt="Asian Pacific Society of Cardiology"
-                      width={190}
-                      height={190}
-                      className="h-24 w-auto object-contain drop-shadow-[0_16px_32px_rgba(0,0,0,0.16)]"
-                    />
-                    <Image
-                      src={tcipLogoSrc}
-                      alt="TCIP Program"
-                      width={190}
-                      height={190}
-                      className="h-24 w-auto object-contain drop-shadow-[0_16px_32px_rgba(0,0,0,0.16)]"
-                    />
-                  </div>
-                </>
-              )}
+        {/* Centered form area */}
+        <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
+          <div className="w-full max-w-md">
+            {/* Heading */}
+            <div className="mb-8">
+              <h2 className="font-heading text-2xl font-bold tracking-tight text-[var(--foreground)]">
+                {mode === "signin" ? "Welcome back" : "Create your account"}
+              </h2>
+              <p className="mt-1.5 text-sm text-[var(--muted)]">
+                {mode === "signin"
+                  ? "Sign in to continue to your dashboard"
+                  : "Get started with True Competency"}
+              </p>
             </div>
-          </div>
 
-          {/* RIGHT: form */}
-          <div className="relative">
-            {/* mode switch */}
-            <div className="mb-4 flex items-center justify-center gap-2">
+            {/* Mode toggle — segmented control */}
+            <div className="mb-6 flex rounded-xl border border-[var(--border)] bg-[var(--field)] p-1">
               <button
                 type="button"
                 onClick={() => setMode("signin")}
                 className={[
-                  "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                  "hover:scale-[1.08] active:scale-[0.98]",
+                  "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
                   mode === "signin"
-                    ? "bg-[var(--surface)] text-[var(--foreground)] border-[var(--border)] shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
-                    : "bg-transparent text-[var(--muted)] border-[var(--border)]/50 hover:text-[var(--foreground)]",
+                    ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm border border-[var(--border)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)] border border-transparent",
                 ].join(" ")}
               >
-                Sign in
+                Sign In
               </button>
               <button
                 type="button"
                 onClick={() => setMode("signup")}
                 className={[
-                  "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                  "hover:scale-[1.08] active:scale-[0.98]",
+                  "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
                   mode === "signup"
-                    ? "bg-[var(--surface)] text-[var(--foreground)] border-[var(--border)] shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
-                    : "bg-transparent text-[var(--muted)] border-[var(--border)]/50 hover:text-[var(--foreground)]",
+                    ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm border border-[var(--border)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)] border border-transparent",
                 ].join(" ")}
               >
-                Sign up
+                Sign Up
               </button>
             </div>
 
-            {/* role selector (signup only) */}
+            {/* Role selector (signup only) */}
             {mode === "signup" && (
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-[var(--muted)]">I am a:</span>
+              <div className="mb-6 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-[var(--muted)]">I am a:</span>
                 <RoleChip
                   label="trainee"
                   active={role === "trainee"}
@@ -549,11 +595,11 @@ export default function SignInPage() {
               </div>
             )}
 
-            {/* form */}
+            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === "signup" && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field
                       label="First name"
                       type="text"
@@ -573,11 +619,17 @@ export default function SignInPage() {
                   </div>
 
                   {/* Country */}
-                  <div className="group">
-                    <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]/90">
                       Country <span className="text-red-500">*</span>
                     </label>
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--field)] p-1.5">
+                    <div
+                      className={[
+                        "rounded-xl border border-[var(--border)] bg-[var(--field)] p-1",
+                        "focus-within:border-[color:var(--accent)] focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_12%,transparent)]",
+                        "transition-all",
+                      ].join(" ")}
+                    >
                       <CountrySelect
                         value={countryCode || null}
                         onChange={onCountryChange}
@@ -648,44 +700,36 @@ export default function SignInPage() {
                 type="submit"
                 disabled={loading}
                 className={[
-                  "relative mt-2 w-full rounded-xl py-3 font-semibold",
+                  "relative mt-3 w-full rounded-xl py-3 text-sm font-semibold",
                   "bg-[var(--accent)] text-white disabled:opacity-60",
-                  "shadow-[0_10px_24px_color-mix(in_oklab,var(--accent)_26%,transparent)]",
-                  "transition-transform hover:scale-[1.02] active:scale-[0.99]",
+                  "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_color-mix(in_oklab,var(--accent)_22%,transparent)]",
+                  "transition-all hover:brightness-110 active:scale-[0.99]",
                 ].join(" ")}
               >
-                <span className="relative z-[1]">
-                  {loading
-                    ? "Please wait…"
-                    : mode === "signup"
-                      ? "Create Account"
-                      : "Sign In"}
-                </span>
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
-                >
-                  <span className="absolute -inset-x-1 -top-1 h-1/2 opacity-30 blur-md shine" />
-                </span>
+                {loading
+                  ? "Please wait…"
+                  : mode === "signup"
+                    ? "Create Account"
+                    : "Sign In"}
               </button>
             </form>
 
-            {/* divider */}
-            <div className="my-5 flex items-center gap-3">
+            {/* Divider */}
+            <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-[var(--border)]" />
               <span className="text-xs text-[var(--muted)]">or</span>
               <div className="h-px flex-1 bg-[var(--border)]" />
             </div>
 
-            {/* toggle */}
-            <p className="text-center text-sm text-[var(--foreground)]">
+            {/* Toggle */}
+            <p className="text-center text-sm text-[var(--muted)]">
               {mode === "signin" ? (
                 <>
                   Don&apos;t have an account?{" "}
                   <button
                     type="button"
                     onClick={() => setMode("signup")}
-                    className="font-medium underline underline-offset-2 text-[var(--accent)] transition-transform hover:scale-[1.06]"
+                    className="font-medium text-[var(--accent)] hover:underline underline-offset-2"
                   >
                     Create account
                   </button>
@@ -696,7 +740,7 @@ export default function SignInPage() {
                   <button
                     type="button"
                     onClick={() => setMode("signin")}
-                    className="font-medium underline underline-offset-2 text-[var(--accent)] transition-transform hover:scale-[1.06]"
+                    className="font-medium text-[var(--accent)] hover:underline underline-offset-2"
                   >
                     Sign in here
                   </button>
@@ -710,7 +754,8 @@ export default function SignInPage() {
           </div>
         </div>
       </div>
-      {/* success toast */}
+
+      {/* Success toast */}
       {toast.open && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
           <div
