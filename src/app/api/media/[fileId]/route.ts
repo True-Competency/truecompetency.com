@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { fileId: string } }
+  { params }: { params: Promise<{ fileId: string }> }  // params is now a Promise in Next.js 15+
 ) {
+  const { fileId } = await params  // must be awaited
+  
   const supabase = await getSupabaseServer()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -12,22 +14,19 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Look up the media record — RLS on question_media ensures user can only
-  // fetch records they are allowed to see
   const { data: media, error: mediaError } = await supabase
     .from('question_media')
     .select('storage_path')
-    .eq('id', params.fileId)
+    .eq('id', fileId)  // using awaited fileId directly
     .single()
 
   if (mediaError || !media) {
     return NextResponse.json({ error: 'Media not found' }, { status: 404 })
   }
 
-  // Short-lived signed URL — private content should never have permanent public links
   const { data, error } = await supabase.storage
     .from('question-media')
-    .createSignedUrl(media.storage_path, 3600) // 1 hour
+    .createSignedUrl(media.storage_path, 3600)
 
   if (error) {
     console.error('[media/fileId] Signed URL error:', error)
