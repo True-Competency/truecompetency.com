@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AppRole = "trainee" | "instructor" | "committee" | "admin";
+export type CommitteeRole = "editor" | "chief_editor";
 
 /**
  * Ensure a row exists in public.profiles for the current auth user.
@@ -39,11 +40,22 @@ export async function ensureProfile(
   const mdFull =
     getStr([mdFirst ?? "", mdLast ?? ""].join(" ").trim()) ??
     getStr(md.full_name);
-  const mdRole = (getStr(md.role) as AppRole | null) ?? null;
+  const mdRoleRaw = getStr(md.role);
+  const mdRole: Exclude<AppRole, "admin"> | null =
+    mdRoleRaw === "trainee" ||
+    mdRoleRaw === "instructor" ||
+    mdRoleRaw === "committee"
+      ? mdRoleRaw
+      : null;
   const mdCountryCode = getStr(md.country_code)?.toUpperCase() ?? null; // keep upper for CHECK
   const mdCountryName = getStr(md.country_name);
   const mdUniversity = getStr(md.university);
   const mdHospital = getStr(md.hospital);
+  const mdCommitteeRoleRaw = getStr(md.committee_role);
+  const mdCommitteeRole: CommitteeRole | null =
+    mdCommitteeRoleRaw === "editor" || mdCommitteeRoleRaw === "chief_editor"
+      ? mdCommitteeRoleRaw
+      : null;
 
   // Is this user an admin (from server-controlled table)?
   const { data: adminRow, error: adminErr } = await supabase
@@ -58,17 +70,14 @@ export async function ensureProfile(
   const { data: existing, error: selErr } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, first_name, last_name, role, country_code, country_name, university, hospital, created_at"
+      "id, email, full_name, first_name, last_name, role, committee_role, country_code, country_name, university, hospital, created_at"
     )
     .eq("id", userId)
     .maybeSingle();
   if (selErr) throw selErr;
 
   // Decide role: admin trumps everything, else metadata -> argument -> default "trainee"
-  const desiredRole: AppRole =
-    (isAdmin ? "admin" : (mdRole as AppRole | null)) ??
-    role ??
-    "trainee";
+  const desiredRole: AppRole = (isAdmin ? "admin" : mdRole) ?? role ?? "trainee";
 
   if (existing) {
     // No downgrades; only promote to admin if needed or enrich missing fields.
@@ -82,6 +91,7 @@ export async function ensureProfile(
       country_name?: string | null;
       university?: string | null;
       hospital?: string | null;
+      committee_role?: CommitteeRole | null;
     } = {};
 
     // Promote to admin if applicable
@@ -102,6 +112,13 @@ export async function ensureProfile(
     if (!existing.country_name && mdCountryName) updates.country_name = mdCountryName;
     if (!existing.university && mdUniversity) updates.university = mdUniversity;
     if (!existing.hospital && mdHospital) updates.hospital = mdHospital;
+    if (
+      desiredRole === "committee" &&
+      !existing.committee_role &&
+      (mdCommitteeRole || "editor")
+    ) {
+      updates.committee_role = mdCommitteeRole ?? "editor";
+    }
 
     if (Object.keys(updates).length > 0) {
       const { error: updErr } = await supabase
@@ -113,7 +130,7 @@ export async function ensureProfile(
       const { data: refreshed, error: refErr } = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, first_name, last_name, role, country_code, country_name, university, hospital, created_at"
+          "id, email, full_name, first_name, last_name, role, committee_role, country_code, country_name, university, hospital, created_at"
         )
         .eq("id", userId)
         .single();
@@ -136,6 +153,8 @@ export async function ensureProfile(
     country_name: mdCountryName,
     university: desiredRole === "trainee" ? mdUniversity : mdUniversity ?? null,
     hospital: desiredRole === "instructor" ? mdHospital : mdHospital ?? null,
+    committee_role:
+      desiredRole === "committee" ? (mdCommitteeRole ?? "editor") : null,
   };
 
   const { error: insErr } = await supabase.from("profiles").insert(insertRow);
@@ -144,7 +163,7 @@ export async function ensureProfile(
   const { data: prof, error: afterSelErr } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, first_name, last_name, role, country_code, country_name, university, hospital, created_at"
+      "id, email, full_name, first_name, last_name, role, committee_role, country_code, country_name, university, hospital, created_at"
     )
     .eq("id", userId)
     .single();
