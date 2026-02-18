@@ -1,43 +1,12 @@
-// src/app/(auth)/signin/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { ensureProfile } from "@/lib/ensureProfile";
-import CountrySelect from "@/components/CountrySelect"; // value: string | null; onChange: (code: string) => void
 import { useTheme } from "next-themes";
-
-type Role = "trainee" | "instructor" | "committee";
-
-/* ---------------- UI bits ---------------- */
-function RoleChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: Role;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-        "backdrop-blur-sm",
-        "hover:scale-[1.08] active:scale-[0.98]",
-        active
-          ? "bg-[var(--accent)] text-white border-transparent shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_20%,transparent)]"
-          : "bg-[color:var(--surface)]/70 text-[var(--foreground)]/85 border-[var(--border)] hover:bg-[var(--surface)]",
-      ].join(" ")}
-    >
-      {label.charAt(0).toUpperCase() + label.slice(1)}
-    </button>
-  );
-}
 
 function Field({
   label,
@@ -46,42 +15,29 @@ function Field({
   onChange,
   placeholder,
   autoComplete,
-  required = true,
 }: {
   label: string;
-  type: "text" | "email" | "password";
+  type: "email" | "password";
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   autoComplete?: string;
-  required?: boolean;
 }) {
   return (
     <div className="group">
       <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
-        {label} {required ? <span className="text-red-500">*</span> : null}
+        {label}
       </label>
-      <div
-        className={[
-          "relative rounded-xl border bg-[var(--field)] border-[var(--border)]",
-          "focus-within:border-[color:var(--accent)]",
-          "transition-colors",
-        ].join(" ")}
-      >
+      <div className="relative rounded-xl border bg-[var(--field)] border-[var(--border)] focus-within:border-[color:var(--accent)] transition-colors">
         <input
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          required={required}
-          className={[
-            "w-full rounded-xl px-3 py-2.5 outline-none",
-            "bg-transparent text-[var(--foreground)]",
-            "placeholder:[color:var(--muted)]",
-          ].join(" ")}
+          required
+          className="w-full rounded-xl px-3 py-2.5 outline-none bg-transparent text-[var(--foreground)] placeholder:[color:var(--muted)]"
         />
-        <span className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-[2px] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity glow-accent" />
       </div>
     </div>
   );
@@ -93,40 +49,29 @@ function PasswordField({
   onChange,
   placeholder,
   autoComplete,
-  required = true,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   autoComplete?: string;
-  required?: boolean;
 }) {
   const [show, setShow] = useState(false);
+
   return (
     <div className="group">
       <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
         {label}
       </label>
-      <div
-        className={[
-          "relative rounded-xl border bg-[var(--field)] border-[var(--border)]",
-          "focus-within:border-[color:var(--accent)]",
-          "transition-colors",
-        ].join(" ")}
-      >
+      <div className="relative rounded-xl border bg-[var(--field)] border-[var(--border)] focus-within:border-[color:var(--accent)] transition-colors">
         <input
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          required={required}
-          className={[
-            "w-full rounded-xl pl-3 pr-10 py-2.5 outline-none",
-            "bg-transparent text-[var(--foreground)]",
-            "placeholder:[color:var(--muted)]",
-          ].join(" ")}
+          required
+          className="w-full rounded-xl pl-3 pr-10 py-2.5 outline-none bg-transparent text-[var(--foreground)] placeholder:[color:var(--muted)]"
         />
         <button
           type="button"
@@ -163,47 +108,70 @@ function PasswordField({
             </svg>
           )}
         </button>
-
-        <span className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-[2px] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity glow-accent" />
       </div>
     </div>
   );
 }
 
-const ROLE_INFO: Record<Role, { title: string; points: string[] }> = {
-  trainee: {
-    title: "Trainee — Build your competency portfolio",
-    points: [
-      "Track progress across enrolled competencies",
-      "Answer case-based questions with instant feedback",
-      "Build a performance record for instructors & committee",
-    ],
-  },
-  instructor: {
-    title: "Instructor — Coach and review trainees",
-    points: [
-      "Monitor trainee progress in real time",
-      "Review answers and provide targeted feedback",
-      "Approve completed competencies",
-    ],
-  },
-  committee: {
-    title: "Committee — Govern standards and oversight",
-    points: [
-      "Manage frameworks and assessment standards",
-      "See program-wide analytics and trends",
-      "Approve new competencies & maintain compliance",
-    ],
-  },
-};
+function SignInRightPanel({ theme }: { theme: string | undefined }) {
+  const tcipLogoSrc =
+    theme === "dark" ? "/TCIP_White_Logo.png" : "/TCIP_Black_Logo.png";
 
-/* ---------------- page ---------------- */
+  return (
+    <div className="relative h-full min-h-[500px] rounded-3xl overflow-hidden bg-gradient-to-br from-[#5170ff] via-[#6b85ff] to-[#8599ff] p-8 flex flex-col justify-between">
+      <div className="absolute inset-0 opacity-10">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+            backgroundSize: "50px 50px",
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 flex flex-col justify-center flex-1 space-y-8">
+        <div className="space-y-4">
+          <h2 className="text-4xl font-bold text-white leading-tight">
+            Welcome to True Competency
+          </h2>
+          <p className="text-lg text-white/90 leading-relaxed">
+            Structured competency assessment for interventional cardiology.
+          </p>
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-8">
+        <div className="flex items-center justify-center gap-8 opacity-80">
+          <Image
+            src="/APSC_Logo.png"
+            alt="Asian Pacific Society of Cardiology"
+            width={70}
+            height={70}
+            className="w-16 h-16 object-contain drop-shadow-md"
+          />
+          <Image
+            src={tcipLogoSrc}
+            alt="TCIP Program"
+            width={70}
+            height={70}
+            className="w-16 h-16 object-contain drop-shadow-md"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SignInPage() {
   const router = useRouter();
-  const [redirect, setRedirect] = useState<string>("/");
   const { resolvedTheme } = useTheme();
-  const tcipLogoSrc =
-    resolvedTheme === "dark" ? "/TCIP_White_Logo.png" : "/TCIP_Black_Logo.png";
+
+  const [redirect, setRedirect] = useState<string>("/");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -211,43 +179,13 @@ export default function SignInPage() {
       const r = sp.get("redirect");
       if (r && typeof r === "string") setRedirect(r);
     } catch {
-      /* no-op */
+      // no-op
     }
   }, []);
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [role, setRole] = useState<Role>("trainee");
-
-  // Signup fields
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [countryCode, setCountryCode] = useState<string>(""); // ISO-2, required
-  const [university, setUniversity] = useState(""); // optional (trainee)
-  const [hospital, setHospital] = useState(""); // optional (instructor)
-
-  // Shared
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [msg, setMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ open: boolean; text: string }>({
-    open: false,
-    text: "",
-  });
-
-  const roleInfo = useMemo(() => ROLE_INFO[role], [role]);
-
   function validate(): string | null {
     if (!/^\S+@\S+\.\S+$/.test(email)) return "Please enter a valid email.";
-    if (mode === "signup") {
-      if (!firstName.trim() || !lastName.trim())
-        return "Please enter your first and last name.";
-      if (!countryCode) return "Please select your country.";
-      if (password.length < 8) return "Password must be at least 8 characters.";
-      if (password !== confirm) return "Passwords do not match.";
-    }
+    if (!password.trim()) return "Please enter your password.";
     return null;
   }
 
@@ -261,7 +199,7 @@ export default function SignInPage() {
       const text =
         [maybe.message, maybe.error_description, maybe.details]
           .filter((t): t is string => !!t)
-          .join(" — ") || "Something went wrong";
+          .join(" - ") || "Something went wrong";
       setMsg(text);
       return;
     }
@@ -280,107 +218,17 @@ export default function SignInPage() {
 
     setLoading(true);
     try {
-      if (mode === "signup") {
-        // Send minimal metadata; role will be set in profiles (source of truth)
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-              country_code: countryCode.toUpperCase(),
-            },
-          },
-        });
-        if (error) throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
 
-        if (data.user) {
-          const id = data.user.id;
-
-          // Build the desired profile row for first insert
-          const fullName =
-            `${firstName.trim()} ${lastName.trim()}`.trim() || null;
-          const insertPayload = {
-            id,
-            email,
-            role, // set on initial insert to avoid later role-change restrictions
-            first_name: firstName.trim() || null,
-            last_name: lastName.trim() || null,
-            full_name: fullName,
-            country_code: countryCode.toUpperCase(),
-            university: role === "trainee" ? university.trim() || null : null,
-            hospital: role === "instructor" ? hospital.trim() || null : null,
-          };
-
-          // Try to INSERT the profile row immediately
-          const { error: insertErr } = await supabase
-            .from("profiles")
-            .insert(insertPayload);
-
-          if (insertErr) {
-            // If a row already exists (e.g., a trigger or a parallel process inserted it),
-            // update non-role fields; set role only if it's currently NULL.
-
-            // A profile row may not exist yet on first signup (timing/triggers/RLS). Do NOT use .single().
-            // Ensure it exists, then fetch with maybeSingle().
-            await ensureProfile(supabase);
-
-            const { data: profRow, error: selErr } = await supabase
-              .from("profiles")
-              .select("role")
-              .eq("id", id)
-              .maybeSingle();
-            if (selErr) throw selErr;
-
-            const updatePayload: Record<string, string | null | Role> = {
-              email,
-              first_name: firstName.trim() || null,
-              last_name: lastName.trim() || null,
-              full_name: fullName,
-              country_code: countryCode.toUpperCase(),
-              university: role === "trainee" ? university.trim() || null : null,
-              hospital: role === "instructor" ? hospital.trim() || null : null,
-            };
-            // Only include role if it's currently null/empty to satisfy policies like
-            // "Only admins can change role".
-            if (!profRow || !profRow.role) {
-              (updatePayload as Record<string, unknown>).role = role;
-            }
-
-            const { error: updErr } = await supabase
-              .from("profiles")
-              .update(updatePayload)
-              .eq("id", id);
-
-            if (updErr) throw updErr;
-          }
-
-          // Success toast (non-error look)
-          setToast({
-            open: true,
-            text: "Account created. You can now sign in.",
-          });
-          // Auto-hide toast after 4s
-          setTimeout(() => setToast({ open: false, text: "" }), 4000);
-          setMode("signin");
-        }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-
-        if (data.user) {
-          setToast({ open: true, text: "Signed in successfully" });
-          setTimeout(() => setToast({ open: false, text: "" }), 2500);
-          await ensureProfile(supabase);
-          await supabase.auth.getSession();
-          await new Promise((r) => setTimeout(r, 0));
-          router.replace(redirect || "/");
-          return;
-        }
+      if (data.user) {
+        await ensureProfile(supabase);
+        await supabase.auth.getSession();
+        await new Promise((r) => setTimeout(r, 0));
+        router.replace(redirect || "/");
       }
     } catch (err: unknown) {
       showError(err);
@@ -389,342 +237,95 @@ export default function SignInPage() {
     }
   }
 
-  // CountrySelect returns alpha-2 string
-  function onCountryChange(code: string) {
-    setCountryCode((code || "").toUpperCase());
-  }
-
   return (
-    <div
-      className={[
-        "relative min-h-[100dvh] overflow-hidden",
-        "bg-gradient-to-b from-[#EEF4FF] to-white dark:from-[var(--background)] dark:to-[var(--background)]",
-        "text-[var(--foreground)]",
-      ].join(" ")}
-    >
-      {/* ambient background */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.25] blur-3xl"
-      >
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[color:var(--accent)]/40 animate-float-slow" />
-        <div className="absolute top-1/3 -right-10 h-80 w-80 rounded-full bg-[color:var(--accent)]/25 animate-float-slower" />
-      </div>
-      <div
-        aria-hidden
-        className="bg-grid pointer-events-none absolute inset-0 opacity-60 dark:opacity-25"
-      />
-      <div
-        aria-hidden
-        className="bg-noise pointer-events-none absolute inset-0 opacity-[0.06]"
-      />
-
-      <div className="relative mx-auto max-w-5xl px-4 py-12 md:py-16">
-        {/* Brand */}
-        <div className="mx-auto mb-8 flex flex-col items-center">
-          <Image
-            src="/TC_Logo.png"
-            alt="True Competency"
-            width={120}
-            height={120}
-            priority
-            className="mb-2 drop-shadow-[0_8px_24px_color-mix(in_oklab,var(--accent)_35%,transparent)]"
-          />
-          <h1 className="text-center text-3xl font-semibold tracking-tight text-[var(--accent)]">
-            True Competency
-          </h1>
-          <p className="mt-1 text-center text-sm text-[var(--muted)]">
-            TCIP APSC IVUS Competency Platform
-          </p>
-          <span className="mt-2 inline-block rounded-full border px-3 py-1 text-xs border-[var(--border)] text-[var(--foreground)]/80 backdrop-blur-sm">
-            Medical Training Portal
-          </span>
+    <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl">
+        <div className="text-center mb-10">
+          <div className="flex flex-col items-center gap-4">
+            <Image
+              src="/TC_Logo.png"
+              alt="True Competency"
+              width={80}
+              height={80}
+              priority
+              className="drop-shadow-2xl"
+            />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+                True Competency
+              </h1>
+              <p className="text-sm text-gray-600">
+                TCIP APSC IVUS Competency Platform
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Shell */}
         <div
-          className={[
-            "relative mx-auto grid max-w-4xl gap-6 rounded-3xl p-6 md:grid-cols-2 md:p-8",
-            "border border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-xl",
-            "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_40px_color-mix(in_oklab,var(--accent)_18%,transparent)]",
-          ].join(" ")}
+          className="bg-white shadow-2xl overflow-hidden"
+          style={{ borderRadius: "40px" }}
         >
-          {/* LEFT: copy */}
-          <div className="relative">
-            <div className="sticky top-8 space-y-5">
-              {mode === "signup" ? (
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                  <div className="h-1 w-28 rounded-full bg-[color:var(--accent)]/70" />
-                  <h2 className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-                    {roleInfo.title}
-                  </h2>
-                  <ul className="mt-2 space-y-2 text-sm text-[var(--foreground)]/90">
-                    {roleInfo.points.map((p) => (
-                      <li key={p}>• {p}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <>
-                  <h2 className="text-xl font-semibold text-[var(--foreground)]">
-                    What is True Competency?
-                  </h2>
-                  <p className="text-sm leading-6 text-[var(--muted)]">
-                    A modern training platform for interventional cardiology —
-                    structured evaluations, evidence collection, and transparent
-                    progress tracking for trainees, instructors, and committees.
-                  </p>
-                  <div className="mt-6 flex items-center gap-8 flex-wrap">
-                    <Image
-                      src="/APSC_Logo.png"
-                      alt="Asian Pacific Society of Cardiology"
-                      width={190}
-                      height={190}
-                      className="h-24 w-auto object-contain drop-shadow-[0_16px_32px_rgba(0,0,0,0.16)]"
-                    />
-                    <Image
-                      src={tcipLogoSrc}
-                      alt="TCIP Program"
-                      width={190}
-                      height={190}
-                      className="h-24 w-auto object-contain drop-shadow-[0_16px_32px_rgba(0,0,0,0.16)]"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT: form */}
-          <div className="relative">
-            {/* mode switch */}
-            <div className="mb-4 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className={[
-                  "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                  "hover:scale-[1.08] active:scale-[0.98]",
-                  mode === "signin"
-                    ? "bg-[var(--surface)] text-[var(--foreground)] border-[var(--border)] shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
-                    : "bg-transparent text-[var(--muted)] border-[var(--border)]/50 hover:text-[var(--foreground)]",
-                ].join(" ")}
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className={[
-                  "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                  "hover:scale-[1.08] active:scale-[0.98]",
-                  mode === "signup"
-                    ? "bg-[var(--surface)] text-[var(--foreground)] border-[var(--border)] shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
-                    : "bg-transparent text-[var(--muted)] border-[var(--border)]/50 hover:text-[var(--foreground)]",
-                ].join(" ")}
-              >
-                Sign up
-              </button>
-            </div>
-
-            {/* role selector (signup only) */}
-            {mode === "signup" && (
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-[var(--muted)]">I am a:</span>
-                <RoleChip
-                  label="trainee"
-                  active={role === "trainee"}
-                  onClick={() => setRole("trainee")}
-                />
-                <RoleChip
-                  label="instructor"
-                  active={role === "instructor"}
-                  onClick={() => setRole("instructor")}
-                />
-                <RoleChip
-                  label="committee"
-                  active={role === "committee"}
-                  onClick={() => setRole("committee")}
-                />
+          <div className="grid lg:grid-cols-2 gap-0">
+            <div className="p-8 lg:p-12">
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold text-gray-900">Sign In</h2>
+                <p className="text-gray-600 mt-2">Continue to your dashboard</p>
               </div>
-            )}
 
-            {/* form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === "signup" && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Field
-                      label="First name"
-                      type="text"
-                      value={firstName}
-                      onChange={setFirstName}
-                      placeholder="Jane"
-                      autoComplete="given-name"
-                    />
-                    <Field
-                      label="Last name"
-                      type="text"
-                      value={lastName}
-                      onChange={setLastName}
-                      placeholder="Doe"
-                      autoComplete="family-name"
-                    />
-                  </div>
-
-                  {/* Country */}
-                  <div className="group">
-                    <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
-                      Country <span className="text-red-500">*</span>
-                    </label>
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--field)] p-1.5">
-                      <CountrySelect
-                        value={countryCode || null}
-                        onChange={onCountryChange}
-                        placeholder="Select your country…"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Optional org by role */}
-                  {role === "trainee" && (
-                    <Field
-                      label="University (optional)"
-                      type="text"
-                      value={university}
-                      onChange={setUniversity}
-                      placeholder="e.g., McGill University"
-                      autoComplete="organization"
-                      required={false}
-                    />
-                  )}
-                  {role === "instructor" && (
-                    <Field
-                      label="Hospital (optional)"
-                      type="text"
-                      value={hospital}
-                      onChange={setHospital}
-                      placeholder="e.g., Montreal General Hospital"
-                      autoComplete="organization"
-                      required={false}
-                    />
-                  )}
-                </>
-              )}
-
-              {/* Email */}
-              <Field
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="user@example.com"
-                autoComplete="email"
-              />
-
-              {/* Passwords */}
-              <PasswordField
-                label="Password"
-                value={password}
-                onChange={setPassword}
-                placeholder={
-                  mode === "signup" ? "Create a password" : "Enter password"
-                }
-                autoComplete={
-                  mode === "signup" ? "new-password" : "current-password"
-                }
-              />
-              {mode === "signup" && (
-                <PasswordField
-                  label="Confirm password"
-                  value={confirm}
-                  onChange={setConfirm}
-                  placeholder="Re-enter password"
-                  autoComplete="new-password"
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <Field
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="user@example.com"
+                  autoComplete="email"
                 />
-              )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className={[
-                  "relative mt-2 w-full rounded-xl py-3 font-semibold",
-                  "bg-[var(--accent)] text-white disabled:opacity-60",
-                  "shadow-[0_10px_24px_color-mix(in_oklab,var(--accent)_26%,transparent)]",
-                  "transition-transform hover:scale-[1.02] active:scale-[0.99]",
-                ].join(" ")}
-              >
-                <span className="relative z-[1]">
-                  {loading
-                    ? "Please wait…"
-                    : mode === "signup"
-                      ? "Create Account"
-                      : "Sign In"}
-                </span>
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl"
+                <PasswordField
+                  label="Password"
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="Enter password"
+                  autoComplete="current-password"
+                />
+
+                {msg && (
+                  <div
+                    className="p-3 bg-red-50 border border-red-200"
+                    style={{ borderRadius: "12px" }}
+                  >
+                    <p className="text-sm text-red-600">{msg}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-[#5170ff] hover:bg-[#4060ef] text-white font-semibold shadow-lg shadow-[#5170ff]/30 hover:shadow-xl hover:shadow-[#5170ff]/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ borderRadius: "16px" }}
                 >
-                  <span className="absolute -inset-x-1 -top-1 h-1/2 opacity-30 blur-md shine" />
-                </span>
-              </button>
-            </form>
+                  {loading ? "Please wait..." : "Sign In"}
+                </button>
+              </form>
 
-            {/* divider */}
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-[var(--border)]" />
-              <span className="text-xs text-[var(--muted)]">or</span>
-              <div className="h-px flex-1 bg-[var(--border)]" />
+              <p className="mt-6 text-center text-sm text-gray-600">
+                Do not have an account?{" "}
+                <Link
+                  href={`/signup?redirect=${encodeURIComponent(redirect || "/")}`}
+                  className="font-semibold text-[#5170ff] hover:text-[#4060ef] transition-colors"
+                >
+                  Create account
+                </Link>
+              </p>
             </div>
 
-            {/* toggle */}
-            <p className="text-center text-sm text-[var(--foreground)]">
-              {mode === "signin" ? (
-                <>
-                  Don&apos;t have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setMode("signup")}
-                    className="font-medium underline underline-offset-2 text-[var(--accent)] transition-transform hover:scale-[1.06]"
-                  >
-                    Create account
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setMode("signin")}
-                    className="font-medium underline underline-offset-2 text-[var(--accent)] transition-transform hover:scale-[1.06]"
-                  >
-                    Sign in here
-                  </button>
-                </>
-              )}
-            </p>
-
-            {msg && (
-              <p className="mt-4 text-center text-sm text-red-500">{msg}</p>
-            )}
+            <div className="hidden lg:block bg-gray-50 p-8">
+              <SignInRightPanel theme={resolvedTheme} />
+            </div>
           </div>
         </div>
       </div>
-      {/* success toast */}
-      {toast.open && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
-          <div
-            className="rounded-lg border px-4 py-2 text-sm shadow-lg"
-            style={{
-              background: "var(--ok)",
-              color: "#0b2d17",
-              borderColor: "#1c6b3d",
-            }}
-          >
-            {toast.text}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
