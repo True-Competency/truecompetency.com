@@ -10,7 +10,6 @@
     "test": "echo \"(no tests yet)\""
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.96.0",
     "@vercel/analytics": "^1.6.1",
