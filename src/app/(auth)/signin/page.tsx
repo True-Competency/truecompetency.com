@@ -24,21 +24,18 @@ function Field({
   autoComplete?: string;
 }) {
   return (
-    <div className="group">
-      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
-        {label}
-      </label>
-      <div className="relative rounded-xl border bg-[var(--field)] border-[var(--border)] focus-within:border-[color:var(--accent)] transition-colors">
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          required
-          className="w-full rounded-xl px-3 py-2.5 outline-none bg-transparent text-[var(--foreground)] placeholder:[color:var(--muted)]"
-        />
-      </div>
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required
+        className="w-full px-4 py-3 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+        style={{ borderRadius: "16px" }}
+      />
     </div>
   );
 }
@@ -59,11 +56,9 @@ function PasswordField({
   const [show, setShow] = useState(false);
 
   return (
-    <div className="group">
-      <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
-        {label}
-      </label>
-      <div className="relative rounded-xl border bg-[var(--field)] border-[var(--border)] focus-within:border-[color:var(--accent)] transition-colors">
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <div className="relative">
         <input
           type={show ? "text" : "password"}
           value={value}
@@ -71,16 +66,17 @@ function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           required
-          className="w-full rounded-xl pl-3 pr-10 py-2.5 outline-none bg-transparent text-[var(--foreground)] placeholder:[color:var(--muted)]"
+          className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+          style={{ borderRadius: "16px" }}
         />
         <button
           type="button"
           aria-label={show ? "Hide password" : "Show password"}
           onClick={() => setShow((s) => !s)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]/80 hover:bg-[var(--field)] transition-transform hover:scale-[1.08] active:scale-[0.98]"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
         >
           {show ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M3 3l18 18M10.58 10.58A3 3 0 0012 15a3 3 0 001.42-.38M9.88 5.08A10.94 10.94 0 0112 5c5 0 9.27 3.11 11 7-.41.94-1 1.8-1.7 2.57M6.53 6.53C4.2 7.86 2.54 9.74 1 12c.64 1.17 1.5 2.24 2.53 3.17A11.22 11.22 0 0012 19c1.3 0 2.55-.2 3.72-.58"
                 stroke="currentColor"
@@ -90,7 +86,7 @@ function PasswordField({
               />
             </svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"
                 stroke="currentColor"
@@ -113,12 +109,21 @@ function PasswordField({
   );
 }
 
-function SignInRightPanel({ theme }: { theme: string | undefined }) {
+function SignInRightPanel({
+  theme,
+}: {
+  theme: string | undefined;
+}) {
   const tcipLogoSrc =
     theme === "dark" ? "/TCIP_White_Logo.png" : "/TCIP_Black_Logo.png";
 
   return (
     <div className="relative h-full min-h-[500px] rounded-3xl overflow-hidden bg-gradient-to-br from-[#5170ff] via-[#6b85ff] to-[#8599ff] p-8 flex flex-col justify-between">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-float-delayed" />
+      </div>
+
       <div className="absolute inset-0 opacity-10">
         <div
           className="absolute inset-0"
@@ -136,8 +141,48 @@ function SignInRightPanel({ theme }: { theme: string | undefined }) {
             Welcome to True Competency
           </h2>
           <p className="text-lg text-white/90 leading-relaxed">
-            Structured competency assessment for interventional cardiology.
+            Structured competency assessment for interventional cardiology
+            training.
           </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-white/95">
+            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M9 11L12 14L22 4"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M21 12V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <span className="text-base">Evidence-based assessment</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-white/95">
+            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2" />
+                <path
+                  d="M12 6V12L16 14"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <span className="text-base">Real-time progress tracking</span>
+          </div>
         </div>
       </div>
 
@@ -158,6 +203,9 @@ function SignInRightPanel({ theme }: { theme: string | undefined }) {
             className="w-16 h-16 object-contain drop-shadow-md"
           />
         </div>
+        <p className="text-center text-white/70 text-xs mt-3">
+          In partnership with APSC and TCIP
+        </p>
       </div>
     </div>
   );
@@ -172,6 +220,10 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ open: boolean; text: string }>({
+    open: false,
+    text: "",
+  });
 
   useEffect(() => {
     try {
@@ -225,6 +277,8 @@ export default function SignInPage() {
       if (error) throw error;
 
       if (data.user) {
+        setToast({ open: true, text: "Signed in successfully" });
+        setTimeout(() => setToast({ open: false, text: "" }), 2500);
         await ensureProfile(supabase);
         await supabase.auth.getSession();
         await new Promise((r) => setTimeout(r, 0));
@@ -239,6 +293,23 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+        @keyframes float-delayed {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-30px, 30px) scale(1.1); }
+        }
+        .animate-float {
+          animation: float 20s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+          animation: float-delayed 25s ease-in-out infinite;
+        }
+      `}</style>
+
       <div className="w-full max-w-6xl">
         <div className="text-center mb-10">
           <div className="flex flex-col items-center gap-4">
@@ -261,10 +332,7 @@ export default function SignInPage() {
           </div>
         </div>
 
-        <div
-          className="bg-white shadow-2xl overflow-hidden"
-          style={{ borderRadius: "40px" }}
-        >
+        <div className="bg-white shadow-2xl overflow-hidden" style={{ borderRadius: "40px" }}>
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-8">
@@ -291,10 +359,7 @@ export default function SignInPage() {
                 />
 
                 {msg && (
-                  <div
-                    className="p-3 bg-red-50 border border-red-200"
-                    style={{ borderRadius: "12px" }}
-                  >
+                  <div className="p-3 bg-red-50 border border-red-200" style={{ borderRadius: "12px" }}>
                     <p className="text-sm text-red-600">{msg}</p>
                   </div>
                 )}
@@ -326,6 +391,23 @@ export default function SignInPage() {
           </div>
         </div>
       </div>
+
+      {toast.open && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 6L9 17l-5-5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="font-medium">{toast.text}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

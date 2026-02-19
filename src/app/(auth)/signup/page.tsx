@@ -9,9 +9,6 @@ import { ensureProfile } from "@/lib/ensureProfile";
 import CountrySelect from "@/components/CountrySelect";
 
 type Role = "trainee" | "instructor" | "committee";
-type CommitteeRole = "editor" | "chief_editor";
-
-const DEFAULT_COMMITTEE_ROLE: CommitteeRole = "editor";
 
 const ROLE_INFO: Record<Role, { title: string; points: string[] }> = {
   trainee: {
@@ -138,7 +135,7 @@ function PasswordField({
           className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
         >
           {show ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M3 3l18 18M10.58 10.58A3 3 0 0012 15a3 3 0 001.42-.38M9.88 5.08A10.94 10.94 0 0112 5c5 0 9.27 3.11 11 7-.41.94-1 1.8-1.7 2.57M6.53 6.53C4.2 7.86 2.54 9.74 1 12c.64 1.17 1.5 2.24 2.53 3.17A11.22 11.22 0 0012 19c1.3 0 2.55-.2 3.72-.58"
                 stroke="currentColor"
@@ -148,7 +145,7 @@ function PasswordField({
               />
             </svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"
                 stroke="currentColor"
@@ -176,6 +173,11 @@ function SignUpRightPanel({ role }: { role: Role }) {
 
   return (
     <div className="relative h-full min-h-[500px] rounded-3xl overflow-hidden bg-gradient-to-br from-[#5170ff] via-[#6b85ff] to-[#8599ff] p-8 flex flex-col justify-between">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-float-delayed" />
+      </div>
+
       <div className="absolute inset-0 opacity-10">
         <div
           className="absolute inset-0"
@@ -242,6 +244,10 @@ export default function SignUpPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ open: boolean; text: string }>({
+    open: false,
+    text: "",
+  });
 
   useEffect(() => {
     try {
@@ -308,13 +314,11 @@ export default function SignUpPage() {
 
       if (data.user) {
         const id = data.user.id;
-        const fullName =
-          `${firstName.trim()} ${lastName.trim()}`.trim() || null;
+        const fullName = `${firstName.trim()} ${lastName.trim()}`.trim() || null;
         const insertPayload = {
           id,
           email,
           role,
-          committee_role: role === "committee" ? DEFAULT_COMMITTEE_ROLE : null,
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           full_name: fullName,
@@ -345,8 +349,6 @@ export default function SignUpPage() {
             first_name: firstName.trim() || null,
             last_name: lastName.trim() || null,
             full_name: fullName,
-            committee_role:
-              role === "committee" ? DEFAULT_COMMITTEE_ROLE : null,
             country_code: countryCode.toUpperCase(),
             university: role === "trainee" ? university.trim() || null : null,
             hospital:
@@ -367,9 +369,14 @@ export default function SignUpPage() {
           if (updErr) throw updErr;
         }
 
-        router.replace(
-          `/signin?redirect=${encodeURIComponent(redirect || "/")}`,
-        );
+        setToast({
+          open: true,
+          text: "Account created successfully. Redirecting to sign in...",
+        });
+        setTimeout(() => {
+          setToast({ open: false, text: "" });
+          router.replace(`/signin?redirect=${encodeURIComponent(redirect || "/")}`);
+        }, 1200);
       }
     } catch (err: unknown) {
       showError(err);
@@ -384,6 +391,23 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+        @keyframes float-delayed {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-30px, 30px) scale(1.1); }
+        }
+        .animate-float {
+          animation: float 20s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+          animation: float-delayed 25s ease-in-out infinite;
+        }
+      `}</style>
+
       <div className="w-full max-w-6xl">
         <div className="text-center mb-10">
           <div className="flex flex-col items-center gap-4">
@@ -406,16 +430,11 @@ export default function SignUpPage() {
           </div>
         </div>
 
-        <div
-          className="bg-white shadow-2xl overflow-hidden"
-          style={{ borderRadius: "40px" }}
-        >
+        <div className="bg-white shadow-2xl overflow-hidden" style={{ borderRadius: "40px" }}>
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-900">
-                  Create Account
-                </h2>
+                <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
                 <p className="text-gray-600 mt-2">Set up your profile</p>
               </div>
 
@@ -463,13 +482,8 @@ export default function SignUpPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Country
-                  </label>
-                  <div
-                    className="border border-gray-200 bg-white p-2"
-                    style={{ borderRadius: "16px" }}
-                  >
+                  <label className="text-sm font-medium text-gray-700">Country</label>
+                  <div className="border border-gray-200 bg-white p-2" style={{ borderRadius: "16px" }}>
                     <CountrySelect
                       value={countryCode || null}
                       onChange={onCountryChange}
@@ -549,10 +563,7 @@ export default function SignUpPage() {
                 </div>
 
                 {msg && (
-                  <div
-                    className="p-3 bg-red-50 border border-red-200"
-                    style={{ borderRadius: "12px" }}
-                  >
+                  <div className="p-3 bg-red-50 border border-red-200" style={{ borderRadius: "12px" }}>
                     <p className="text-sm text-red-600">{msg}</p>
                   </div>
                 )}
@@ -584,6 +595,23 @@ export default function SignUpPage() {
           </div>
         </div>
       </div>
+
+      {toast.open && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 6L9 17l-5-5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="font-medium">{toast.text}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
