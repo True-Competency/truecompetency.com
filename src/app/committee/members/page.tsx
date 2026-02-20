@@ -3,7 +3,16 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Crown, Building2, Globe, BookOpen, HelpCircle, Vote } from "lucide-react";
+import ReactCountryFlag from "react-country-flag";
+import {
+  Crown,
+  Building2,
+  Globe,
+  BookOpen,
+  HelpCircle,
+  Vote,
+  Hospital,
+} from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Member = {
@@ -15,6 +24,7 @@ type Member = {
   hospital: string | null;
   university: string | null;
   country_name: string | null;
+  country_code: string | null;
   committee_role: string | null;
   proposed_competencies: number;
   proposed_questions: number;
@@ -72,7 +82,7 @@ export default function CommitteeMembers() {
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, first_name, last_name, email, hospital, university, country_name, committee_role"
+            "id, full_name, first_name, last_name, email, hospital, university, country_name, country_code, committee_role"
           )
           .eq("role", "committee");
         if (pErr) throw pErr;
@@ -240,7 +250,10 @@ function MemberCard({
 }) {
   const isChair = m.committee_role === "chief_editor";
   const color = avatarColor(m);
-  const institution = m.hospital || m.university;
+  const countryCode =
+    m.country_code && /^[A-Za-z]{2}$/.test(m.country_code)
+      ? m.country_code.toUpperCase()
+      : null;
 
   return (
     <div
@@ -283,15 +296,36 @@ function MemberCard({
         </div>
 
         <div className="mt-1.5 space-y-1">
-          {institution && (
+          {m.hospital && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+              <Hospital size={12} className="flex-shrink-0" />
+              <span className="truncate">{m.hospital}</span>
+            </div>
+          )}
+          {!m.hospital && m.university && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
               <Building2 size={12} className="flex-shrink-0" />
-              <span className="truncate">{institution}</span>
+              <span className="truncate">{m.university}</span>
             </div>
           )}
           {m.country_name && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-              <Globe size={12} className="flex-shrink-0" />
+              {countryCode ? (
+                <ReactCountryFlag
+                  countryCode={countryCode}
+                  svg
+                  style={{
+                    width: "1em",
+                    height: "1em",
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                  title={m.country_name}
+                  aria-label={m.country_name}
+                />
+              ) : (
+                <Globe size={12} className="flex-shrink-0" />
+              )}
               <span>{m.country_name}</span>
             </div>
           )}
