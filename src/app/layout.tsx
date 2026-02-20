@@ -3,7 +3,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -38,9 +37,7 @@ export default function RootLayout({
     >
       <body className="font-sans bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
         <ThemeProvider>
-          {/* FLEX WRAPPER: ensures footer sticks & full height maintained */}
           <div className="min-h-svh flex flex-col">
-            <Header />
             <main className="flex-1 flex flex-col overflow-x-hidden">
               {children}
             </main>
