@@ -86,7 +86,7 @@ export default function CommitteeLayout({
   useEffect(() => {
     window.localStorage.setItem(
       "committee_sidebar_collapsed",
-      collapsed ? "1" : "0"
+      collapsed ? "1" : "0",
     );
   }, [collapsed]);
 
@@ -151,7 +151,9 @@ export default function CommitteeLayout({
       >
         {/* Logo + portal label */}
         <div className="px-3 pt-4 pb-4 border-b border-[var(--border)]">
-          <div className={`relative group ${collapsed ? "flex justify-center" : ""}`}>
+          <div
+            className={`relative group ${collapsed ? "flex justify-center" : ""}`}
+          >
             <Link
               href="/committee"
               className={`flex items-center ${
@@ -206,10 +208,10 @@ export default function CommitteeLayout({
             href="/committee"
             title="Dashboard"
             className={`${navLinkBase} ${
-              collapsed ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl" : ""
-            } ${
-              isActive("/committee", true) ? navActive : navIdle
-            }`}
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/committee", true) ? navActive : navIdle}`}
           >
             <LayoutDashboard size={16} />
             {!collapsed && <span>Dashboard</span>}
@@ -220,10 +222,10 @@ export default function CommitteeLayout({
             href="/committee/competencies"
             title="Competencies"
             className={`${navLinkBase} ${
-              collapsed ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl" : ""
-            } ${
-              isActive("/committee/competencies") ? navActive : navIdle
-            }`}
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/committee/competencies") ? navActive : navIdle}`}
           >
             <BookOpen size={16} />
             {!collapsed && <span>Competencies</span>}
@@ -238,9 +240,7 @@ export default function CommitteeLayout({
                 collapsed
                   ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
                   : ""
-              } ${
-                isReviewActive ? navActive : navIdle
-              }`}
+              } ${isReviewActive ? navActive : navIdle}`}
             >
               <ClipboardList size={16} />
               {!collapsed && (
@@ -252,30 +252,32 @@ export default function CommitteeLayout({
             </Link>
 
             {/* Always-visible sub-items */}
-            {!collapsed && <div className="ml-8 mt-1 space-y-0.5">
-              <Link
-                href="/committee/review-queue/competencies"
-                className={`${subLinkBase} ${
-                  pathname.startsWith("/committee/review-queue/competencies")
-                    ? subActive
-                    : subIdle
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
-                Competencies
-              </Link>
-              <Link
-                href="/committee/review-queue/questions"
-                className={`${subLinkBase} ${
-                  pathname.startsWith("/committee/review-queue/questions")
-                    ? subActive
-                    : subIdle
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
-                Questions
-              </Link>
-            </div>}
+            {!collapsed && (
+              <div className="ml-8 mt-1 space-y-0.5">
+                <Link
+                  href="/committee/review-queue/competencies"
+                  className={`${subLinkBase} ${
+                    pathname.startsWith("/committee/review-queue/competencies")
+                      ? subActive
+                      : subIdle
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
+                  Competencies
+                </Link>
+                <Link
+                  href="/committee/review-queue/questions"
+                  className={`${subLinkBase} ${
+                    pathname.startsWith("/committee/review-queue/questions")
+                      ? subActive
+                      : subIdle
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
+                  Questions
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Members */}
@@ -283,10 +285,10 @@ export default function CommitteeLayout({
             href="/committee/members"
             title="Members"
             className={`${navLinkBase} ${
-              collapsed ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl" : ""
-            } ${
-              isActive("/committee/members") ? navActive : navIdle
-            }`}
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/committee/members") ? navActive : navIdle}`}
           >
             <Users size={16} />
             {!collapsed && <span>Members</span>}
@@ -338,9 +340,7 @@ export default function CommitteeLayout({
               role="menu"
               aria-label="Profile menu"
               className={`absolute ${
-                collapsed
-                  ? "left-[68px] w-44"
-                  : "left-3 right-3"
+                collapsed ? "left-[68px] w-44" : "left-3 right-3"
               } bottom-[82px] rounded-xl border border-[var(--border)] bg-[color:var(--surface)] shadow-[0_12px_48px_color-mix(in_oklab,var(--accent)_16%,transparent)] overflow-hidden z-20`}
             >
               <div className="py-1">
