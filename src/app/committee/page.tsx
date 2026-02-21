@@ -101,7 +101,7 @@ export default function CommitteeDashboard() {
           (qRows ?? []).forEach((q: { competency_id: string }) => {
             counts[q.competency_id] = (counts[q.competency_id] ?? 0) + 1;
           });
-          coveredCount = Object.values(counts).filter((n) => n >= 3).length;
+          coveredCount = Object.values(counts).filter((n) => n >= 1).length;
           withQuestionsCount = Object.keys(counts).filter((id) =>
             allIds.includes(id),
           ).length;
@@ -277,7 +277,7 @@ export default function CommitteeDashboard() {
             <div className="text-xs text-[var(--muted)] mt-0.5 leading-snug">
               {loading
                 ? "Computing…"
-                : `${stats?.coveredCompetencies ?? 0} of ${stats?.totalCompetencies ?? 0} competencies have ≥ 3 questions`}
+                : `${stats?.coveredCompetencies ?? 0} of ${stats?.totalCompetencies ?? 0} competencies have at least one question`}
             </div>
           </div>
           <div className="h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
