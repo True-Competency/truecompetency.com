@@ -25,6 +25,7 @@ type Member = {
   university: string | null;
   country_name: string | null;
   country_code: string | null;
+  avatar_path: string | null;
   committee_role: string | null;
   proposed_competencies: number;
   proposed_questions: number;
@@ -82,7 +83,7 @@ export default function CommitteeMembers() {
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, first_name, last_name, email, hospital, university, country_name, country_code, committee_role"
+            "id, full_name, first_name, last_name, email, hospital, university, country_name, country_code, avatar_path, committee_role"
           )
           .eq("role", "committee");
         if (pErr) throw pErr;
@@ -254,6 +255,10 @@ function MemberCard({
     m.country_code && /^[A-Za-z]{2}$/.test(m.country_code)
       ? m.country_code.toUpperCase()
       : null;
+  const avatarUrl = m.avatar_path
+    ? supabase.storage.from("profile-pictures").getPublicUrl(m.avatar_path).data
+        .publicUrl
+    : "";
 
   return (
     <div
@@ -282,7 +287,16 @@ function MemberCard({
         }`}
         style={{ background: color }}
       >
-        {getInitials(m)}
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt={getDisplayName(m)}
+            className="h-full w-full object-cover rounded-full"
+          />
+        ) : (
+          getInitials(m)
+        )}
       </div>
 
       {/* Info */}

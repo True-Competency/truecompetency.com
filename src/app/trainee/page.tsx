@@ -21,6 +21,7 @@ type Profile = {
   university?: string | null;
   hospital?: string | null;
   country_name?: string | null;
+  avatar_path?: string | null;
 };
 
 type Competency = {
@@ -159,7 +160,7 @@ export default function TraineeDashboard() {
         const { data: prof, error: profErr } = await supabase
           .from("profiles")
           .select(
-            "id, role, first_name, last_name, full_name, email, university, hospital, country_name"
+            "id, role, first_name, last_name, full_name, email, university, hospital, country_name, avatar_path"
           )
           .eq("id", uid)
           .single<Profile>();
@@ -646,6 +647,11 @@ export default function TraineeDashboard() {
     setSearchQEnroll("");
   };
 
+  const meAvatarUrl = me?.avatar_path
+    ? supabase.storage.from("profile-pictures").getPublicUrl(me.avatar_path).data
+        .publicUrl
+    : "";
+
   /* ---------- render ---------- */
   return (
     <main className="bg-[var(--background)] text-[var(--foreground)] transition-colors">
@@ -697,7 +703,16 @@ export default function TraineeDashboard() {
                   className="h-16 w-16 md:h-20 md:w-20 rounded-full flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-md ring-4 ring-[var(--surface)]"
                   style={{ background: "var(--accent)" }}
                 >
-                  {getInitials(greetingName || me?.email || "")}
+                  {meAvatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={meAvatarUrl}
+                      alt={greetingName || "Profile picture"}
+                      className="h-full w-full object-cover rounded-full"
+                    />
+                  ) : (
+                    getInitials(greetingName || me?.email || "")
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

@@ -24,6 +24,7 @@ type MeProfile = {
   hospital: string | null;
   country_name: string | null;
   country_code: string | null;
+  avatar_path: string | null;
 };
 
 type ProgressRow = { student_id: string; pct: number };
@@ -116,6 +117,13 @@ export default function InstructorClient() {
     return "DR";
   }, [meProfile]);
 
+  const meAvatarUrl = useMemo(() => {
+    if (!meProfile?.avatar_path) return "";
+    return supabase.storage
+      .from("profile-pictures")
+      .getPublicUrl(meProfile.avatar_path).data.publicUrl;
+  }, [meProfile?.avatar_path]);
+
   // Competencies (used for assign modal)
   const [competencies, setCompetencies] = useState<Competency[]>([]);
 
@@ -146,7 +154,7 @@ export default function InstructorClient() {
         const { data: me, error: meErr } = await supabase
           .from("profiles")
           .select(
-            "id, email, first_name, last_name, role, hospital, country_name, country_code"
+            "id, email, first_name, last_name, role, hospital, country_name, country_code, avatar_path"
           )
           .eq("id", uid)
           .single<MeProfile>();
@@ -572,7 +580,16 @@ export default function InstructorClient() {
                   className="h-16 w-16 md:h-20 md:w-20 rounded-full flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-md ring-4 ring-[var(--surface)]"
                   style={{ background: "var(--accent)" }}
                 >
-                  {initials}
+                  {meAvatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={meAvatarUrl}
+                      alt={displayDr}
+                      className="h-full w-full object-cover rounded-full"
+                    />
+                  ) : (
+                    initials
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

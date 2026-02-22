@@ -1,9 +1,18 @@
 // src/app/account/page.client.tsx
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import CountrySelect from "@/components/CountrySelect";
+import { Camera, Loader2, Upload } from "lucide-react";
 
 type Props = { email: string };
 
@@ -18,6 +27,7 @@ type ProfileRow = {
   country_name: string | null;
   university: string | null;
   hospital: string | null;
+  avatar_path: string | null;
 };
 
 type CountryRow = {
@@ -44,6 +54,9 @@ export default function AccountClient({ email }: Props) {
 
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [profileErr, setProfileErr] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   /* ---------------- password state ---------------- */
   const [currentPwd, setCurrentPwd] = useState("");
@@ -70,6 +83,14 @@ export default function AccountClient({ email }: Props) {
 
   const isValidEmail = (val: string): boolean =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
+  const AVATAR_ALLOWED = ["image/jpeg", "image/png", "image/webp"];
+  const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+  const makeAvatarUrl = useCallback((path: string | null) => {
+    if (!path) return "";
+    const { data } = supabase.storage.from("profile-pictures").getPublicUrl(path);
+    return data.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+  }, []);
 
   const resolveCountryName = useCallback(
     (code: string): string => {
@@ -110,7 +131,7 @@ export default function AccountClient({ email }: Props) {
         const { data: prof, error: profErr } = await supabase
           .from("profiles")
           .select(
-            "id,email,role,first_name,last_name,full_name,country_code,country_name,university,hospital"
+            "id,email,role,first_name,last_name,full_name,country_code,country_name,university,hospital,avatar_path"
           )
           .eq("id", user.id)
           .maybeSingle<ProfileRow>();
@@ -137,6 +158,7 @@ export default function AccountClient({ email }: Props) {
           setUniversity(prof.university ?? "");
           setHospital(prof.hospital ?? "");
           setCountries(cData ?? []);
+          setAvatarUrl(makeAvatarUrl(prof.avatar_path ?? null));
         }
       } catch (e) {
         if (active) {
@@ -154,7 +176,7 @@ export default function AccountClient({ email }: Props) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [makeAvatarUrl]);
 
   // auto compose full name if user fills first/last but leaves fullName empty
   useEffect(() => {
@@ -200,6 +222,7 @@ export default function AccountClient({ email }: Props) {
           profile.role === "instructor"
             ? hospital.trim() || null
             : profile.hospital,
+        avatar_path: profile.avatar_path ?? null,
       };
 
       // Update profiles table
@@ -244,6 +267,7 @@ export default function AccountClient({ email }: Props) {
               country_name: payload.country_name,
               university: payload.university,
               hospital: payload.hospital,
+              avatar_path: payload.avatar_path,
             }
           : prev
       );
@@ -251,6 +275,72 @@ export default function AccountClient({ email }: Props) {
       setProfileErr(e instanceof Error ? e.message : "Failed to save profile.");
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function onAvatarPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = "";
+    if (!file) return;
+
+    setProfileMsg(null);
+    setProfileErr(null);
+
+    if (!AVATAR_ALLOWED.includes(file.type)) {
+      setProfileErr("Unsupported file type. Use JPG, PNG, or WEBP.");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setProfileErr("Profile picture is too large. Max size is 5 MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const reqRes = await fetch("/api/avatar/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mimeType: file.type, fileSize: file.size }),
+      });
+      const reqJson = (await reqRes.json()) as {
+        error?: string;
+        signedUrl?: string;
+        storagePath?: string;
+      };
+      if (!reqRes.ok || !reqJson.signedUrl || !reqJson.storagePath) {
+        throw new Error(reqJson.error || "Failed to initialize avatar upload.");
+      }
+
+      const uploadRes = await fetch(reqJson.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`Avatar upload failed (${uploadRes.status}).`);
+      }
+
+      const confRes = await fetch("/api/avatar/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storagePath: reqJson.storagePath }),
+      });
+      const confJson = (await confRes.json()) as { error?: string };
+      if (!confRes.ok) {
+        throw new Error(confJson.error || "Failed to save avatar.");
+      }
+
+      setProfile((prev) =>
+        prev ? { ...prev, avatar_path: reqJson.storagePath ?? prev.avatar_path } : prev
+      );
+      setAvatarUrl(makeAvatarUrl(reqJson.storagePath ?? null));
+      setProfileMsg("Profile picture updated.");
+    } catch (err) {
+      setProfileErr(
+        err instanceof Error ? err.message : "Failed to upload profile picture."
+      );
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -370,6 +460,63 @@ export default function AccountClient({ email }: Props) {
             <p className="text-sm text-[var(--muted)]">No profile found.</p>
           ) : (
             <form onSubmit={onSaveProfile} className="space-y-5">
+              <div className="flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--field)] p-3">
+                <div className="relative h-16 w-16 rounded-full overflow-hidden border border-[var(--border)] bg-[var(--surface)] grid place-items-center">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarUrl}
+                      alt="Profile picture"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-lg font-semibold text-[var(--muted)]">
+                      {(fullName || emailState || "U").trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  {avatarUploading && (
+                    <div className="absolute inset-0 bg-black/35 grid place-items-center">
+                      <Loader2 size={16} className="animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Profile picture</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    JPG, PNG, WEBP • max 5 MB
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-60"
+                    >
+                      {avatarUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                      {avatarUploading ? "Uploading…" : "Upload new"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-60"
+                    >
+                      <Camera size={12} />
+                      Change
+                    </button>
+                  </div>
+                </div>
+
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={onAvatarPick}
+                />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="font-medium">First name</span>

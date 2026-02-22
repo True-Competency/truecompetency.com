@@ -23,6 +23,7 @@ type Profile = {
   first_name: string | null;
   last_name: string | null;
   committee_role: string | null;
+  avatar_path: string | null;
 };
 
 export default function CommitteeLayout({
@@ -45,7 +46,7 @@ export default function CommitteeLayout({
       if (!u.user?.id || cancelled) return;
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, first_name, last_name, committee_role")
+        .select("id, full_name, first_name, last_name, committee_role, avatar_path")
         .eq("id", u.user.id)
         .maybeSingle();
       if (data && !cancelled) setProfile(data as Profile);
@@ -111,6 +112,12 @@ export default function CommitteeLayout({
       [p.first_name, p.last_name].filter(Boolean).join(" ") ||
       "Committee Member"
     );
+  }
+
+  function getAvatarUrl(p: Profile | null) {
+    if (!p?.avatar_path) return "";
+    return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
+      .data.publicUrl;
   }
 
   async function handleSignOut() {
@@ -310,7 +317,16 @@ export default function CommitteeLayout({
               className="w-9 h-9 rounded-full grid place-items-center text-white text-xs font-bold flex-shrink-0"
               style={{ background: "var(--accent)" }}
             >
-              {getInitials(profile)}
+              {profile?.avatar_path ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={getAvatarUrl(profile)}
+                  alt={getDisplayName(profile)}
+                  className="h-full w-full object-cover rounded-full"
+                />
+              ) : (
+                getInitials(profile)
+              )}
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
