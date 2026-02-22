@@ -24,10 +24,21 @@ type QuestionProposal = {
   competency_id: string;
   question_text: string;
   options: QuestionOption[];
+  media: QuestionMediaItem[];
   suggested_by: string | null;
 };
 
 type Profile = { id: string };
+type QuestionMediaItem = {
+  id: string;
+  stage_id: string | null;
+  file_name: string;
+  file_type: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  storage_path: string;
+  signed_url: string | null;
+};
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -89,6 +100,7 @@ export default function ReviewQueueQuestions() {
         // Options for each question
         const ids = qRows.map((q) => q.id);
         const optByQ: Record<string, QuestionOption[]> = {};
+        const mediaByQ: Record<string, QuestionMediaItem[]> = {};
         if (ids.length > 0) {
           const { data: opts, error: oErr } = await supabase
             .from("competency_question_options_stage")
@@ -111,6 +123,35 @@ export default function ReviewQueueQuestions() {
               });
             }
           );
+
+          const { data: mediaRows, error: mErr } = await supabase
+            .from("question_media")
+            .select(
+              "id, stage_id, file_name, file_type, mime_type, file_size, storage_path, created_at"
+            )
+            .in("stage_id", ids)
+            .order("created_at", { ascending: true });
+          if (mErr) throw mErr;
+
+          const mediaWithUrls = await Promise.all(
+            ((mediaRows ?? []) as Omit<QuestionMediaItem, "signed_url">[]).map(
+              async (m) => {
+                const { data: signed } = await supabase.storage
+                  .from("question-media")
+                  .createSignedUrl(m.storage_path, 60 * 60);
+                return {
+                  ...m,
+                  signed_url: signed?.signedUrl ?? null,
+                } as QuestionMediaItem;
+              }
+            )
+          );
+
+          mediaWithUrls.forEach((m) => {
+            if (!m.stage_id) return;
+            if (!mediaByQ[m.stage_id]) mediaByQ[m.stage_id] = [];
+            mediaByQ[m.stage_id].push(m);
+          });
         }
 
         // Proposer names
@@ -173,7 +214,11 @@ export default function ReviewQueueQuestions() {
         if (!cancelled) {
           setCompetencies((comps ?? []) as Competency[]);
           setQuestions(
-            qRows.map((q) => ({ ...q, options: optByQ[q.id] ?? [] }))
+            qRows.map((q) => ({
+              ...q,
+              options: optByQ[q.id] ?? [],
+              media: mediaByQ[q.id] ?? [],
+            }))
           );
           setSuggestedByNames(namesMap);
           setMyVotes(myQMap);
@@ -445,6 +490,59 @@ export default function ReviewQueueQuestions() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {q.media.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-[var(--muted)] mb-2">
+                      Attachments
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {q.media.map((m) => {
+                        const isImage = (m.mime_type ?? "").startsWith("image/");
+                        const isVideo = (m.mime_type ?? "").startsWith("video/");
+                        return (
+                          <div
+                            key={m.id}
+                            className="rounded-xl border border-[var(--border)] bg-[var(--field)] p-2"
+                          >
+                            {m.signed_url && isImage && (
+                              <a
+                                href={m.signed_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={m.signed_url}
+                                  alt={m.file_name}
+                                  className="w-full h-36 object-cover rounded-lg border border-[var(--border)] bg-black/5"
+                                />
+                              </a>
+                            )}
+                            {m.signed_url && isVideo && (
+                              <video
+                                src={m.signed_url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-36 rounded-lg border border-[var(--border)] bg-black"
+                              />
+                            )}
+                            {(!m.signed_url || (!isImage && !isVideo)) && (
+                              <div className="h-36 rounded-lg border border-[var(--border)] bg-[var(--surface)] grid place-items-center text-xs text-[var(--muted)] px-3 text-center">
+                                Preview unavailable
+                              </div>
+                            )}
+                            <p className="mt-2 text-xs text-[var(--foreground)] truncate">
+                              {m.file_name}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

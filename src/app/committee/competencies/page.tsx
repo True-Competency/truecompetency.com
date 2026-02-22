@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, Search, X } from "lucide-react";
+import { Paperclip, Plus, Search, Trash2, Upload, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Competency = {
@@ -19,6 +19,30 @@ type QuestionOption = {
   body: string;
   is_correct: boolean;
 };
+
+type QuestionAttachment = {
+  id: string;
+  file: File;
+};
+
+const QUESTION_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const QUESTION_MEDIA_ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+]);
+const QUESTION_MEDIA_ALLOWED_EXT = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "mp4",
+  "webm",
+]);
 
 const DIFF_ORDER = ["Beginner", "Intermediate", "Expert"] as const;
 
@@ -64,6 +88,9 @@ export default function CompetenciesPage() {
     { label: "C", body: "", is_correct: false },
     { label: "D", body: "", is_correct: false },
   ]);
+  const [qAttachments, setQAttachments] = useState<QuestionAttachment[]>([]);
+  const [qDragActive, setQDragActive] = useState(false);
+  const [qUploadError, setQUploadError] = useState<string | null>(null);
   const [submittingQ, setSubmittingQ] = useState(false);
 
   // ── Data load ────────────────────────────────────────────────────────────
@@ -144,6 +171,77 @@ export default function CompetenciesPage() {
       { label: "C", body: "", is_correct: false },
       { label: "D", body: "", is_correct: false },
     ]);
+    setQAttachments([]);
+    setQDragActive(false);
+    setQUploadError(null);
+  }
+
+  function formatBytes(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+
+  function appendQFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList);
+    const rejectedType: string[] = [];
+    const rejectedSize: string[] = [];
+    const valid: File[] = [];
+
+    incoming.forEach((file) => {
+      const ext = file.name.includes(".")
+        ? file.name.split(".").pop()?.toLowerCase() ?? ""
+        : "";
+      const isSupportedType =
+        QUESTION_MEDIA_ALLOWED_MIME.has(file.type) ||
+        QUESTION_MEDIA_ALLOWED_EXT.has(ext);
+      if (!isSupportedType) {
+        rejectedType.push(file.name);
+        return;
+      }
+      if (file.size > QUESTION_MEDIA_MAX_BYTES) {
+        rejectedSize.push(file.name);
+        return;
+      }
+      valid.push(file);
+    });
+
+    setQAttachments((prev) => {
+      const seen = new Set(
+        prev.map((a) => `${a.file.name}-${a.file.size}-${a.file.lastModified}`)
+      );
+      const next = [...prev];
+      valid.forEach((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        next.push({ id: crypto.randomUUID(), file });
+      });
+      return next;
+    });
+
+    if (rejectedType.length > 0 || rejectedSize.length > 0) {
+      const parts: string[] = [];
+      if (rejectedType.length > 0) {
+        parts.push(
+          `Unsupported file type: ${rejectedType.join(", ")}. Supported: JPG, PNG, WEBP, GIF, MP4, WEBM.`
+        );
+      }
+      if (rejectedSize.length > 0) {
+        parts.push(
+          `File too large: ${rejectedSize.join(", ")}. Max size is 50 MB per file.`
+        );
+      }
+      setQUploadError(parts.join(" "));
+      return;
+    }
+    setQUploadError(null);
+  }
+
+  function normalizeFileName(name: string) {
+    return name.replace(/[^a-zA-Z0-9._-]/g, "_");
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -181,6 +279,7 @@ export default function CompetenciesPage() {
     try {
       setSubmittingQ(true);
       setErr(null);
+      if (qUploadError) throw new Error(qUploadError);
       const compId = qCompId.trim();
       if (!compId) throw new Error("Please choose a competency.");
       const prompt = qBody.trim();
@@ -203,9 +302,90 @@ export default function CompetenciesPage() {
       );
       if (rpcErr) throw rpcErr;
       if (!newId) throw new Error("Failed to create question proposal.");
+
+      // Upload optional attachments through signed URL flow and persist metadata.
+      const failedUploads: string[] = [];
+      let uploadedCount = 0;
+      if (qAttachments.length > 0) {
+        for (const item of qAttachments) {
+          const file = item.file;
+          try {
+            const reqRes = await fetch("/api/upload/request", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: normalizeFileName(file.name),
+                mimeType: file.type,
+                fileSize: file.size,
+                stageId: newId,
+              }),
+            });
+            const reqJson = (await reqRes.json()) as {
+              error?: string;
+              signedUrl?: string;
+              storagePath?: string;
+            };
+            if (!reqRes.ok || !reqJson.signedUrl || !reqJson.storagePath) {
+              throw new Error(
+                reqJson.error || "Failed to initialize file upload."
+              );
+            }
+
+            const uploadRes = await fetch(reqJson.signedUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": file.type || "application/octet-stream",
+              },
+              body: file,
+            });
+            if (!uploadRes.ok) {
+              throw new Error(
+                `Storage rejected upload (${uploadRes.status}).`
+              );
+            }
+
+            const confRes = await fetch("/api/upload/confirm", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                storagePath: reqJson.storagePath,
+                fileName: file.name,
+                mimeType: file.type,
+                fileSize: file.size,
+                stageId: newId,
+                questionId: null,
+              }),
+            });
+            const confJson = (await confRes.json()) as { error?: string };
+            if (!confRes.ok) {
+              throw new Error(
+                confJson.error || "Failed to save file metadata."
+              );
+            }
+
+            uploadedCount++;
+          } catch (uploadErr) {
+            const reason =
+              uploadErr instanceof Error ? uploadErr.message : "Unknown error";
+            failedUploads.push(`${file.name} (${reason})`);
+          }
+        }
+      }
+
       setQModalOpen(false);
       resetQForm();
-      showToast("Question proposal submitted.");
+      if (failedUploads.length > 0) {
+        setErr(
+          `Question submitted, but ${failedUploads.length} attachment(s) failed: ${failedUploads.join(
+            ", "
+          )}.`
+        );
+      }
+      showToast(
+        uploadedCount > 0
+          ? `Question submitted with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
+          : "Question proposal submitted."
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -578,6 +758,117 @@ export default function CompetenciesPage() {
                   className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none resize-vertical min-h-[72px] w-full"
                 />
               </label>
+
+              <div className="grid gap-2 text-sm">
+                <span className="text-[var(--muted)]">Attachments (optional)</span>
+                <div
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setQDragActive(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setQDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    const related = e.relatedTarget as Node | null;
+                    if (!related || !e.currentTarget.contains(related)) {
+                      setQDragActive(false);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setQDragActive(false);
+                    appendQFiles(e.dataTransfer.files);
+                  }}
+                  className={cls(
+                    "rounded-2xl border-2 border-dashed p-4 transition-all",
+                    qDragActive
+                      ? "border-[color:var(--accent)] bg-[color:var(--accent)]/8"
+                      : "border-[var(--border)] bg-[var(--field)]"
+                  )}
+                >
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <div className="h-10 w-10 rounded-full grid place-items-center bg-[var(--surface)] border border-[var(--border)]">
+                      <Upload size={16} className="text-[var(--muted)]" />
+                    </div>
+                    <p className="text-sm text-[var(--foreground)]">
+                      Drag & drop files here
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      Supported: JPG, PNG, WEBP, GIF, MP4, WEBM • Max 50 MB/file
+                    </p>
+                    <label
+                      htmlFor="question-attachments"
+                      className="mt-1 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-colors"
+                    >
+                      <Paperclip size={12} />
+                      Add files
+                    </label>
+                    <input
+                      id="question-attachments"
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        appendQFiles(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </div>
+                </div>
+                {qUploadError && (
+                  <div className="rounded-xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-2 text-xs text-[var(--err)]">
+                    {qUploadError}
+                  </div>
+                )}
+
+                {qAttachments.length > 0 && (
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--field)] p-2 space-y-1.5">
+                    {qAttachments.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2"
+                      >
+                        <Paperclip size={13} className="text-[var(--muted)] flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-medium text-[var(--foreground)]">
+                            {item.file.name}
+                          </div>
+                          <div className="text-[10px] text-[var(--muted)]">
+                            {formatBytes(item.file.size)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQAttachments((prev) =>
+                              prev.filter((a) => a.id !== item.id)
+                            )
+                          }
+                          className="h-7 w-7 grid place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] hover:text-[var(--err)] hover:border-[color:var(--err)]/40 transition-colors"
+                          aria-label={`Remove ${item.file.name}`}
+                          title="Remove file"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setQAttachments([])}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted)] hover:text-[var(--err)] transition-colors"
+                      >
+                        <Trash2 size={11} />
+                        Clear all
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="grid gap-2 text-sm">
                 <span className="text-[var(--muted)]">Answer options *</span>
