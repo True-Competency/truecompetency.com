@@ -48,7 +48,10 @@ export default function CommitteeTagsPage() {
               .select("id, committee_role")
               .eq("id", uid)
               .maybeSingle<ProfileRole>(),
-            supabase.from("tags").select("id, name, created_at, created_by").order("name", { ascending: true }),
+            supabase
+              .from("tags")
+              .select("id, name, created_at, created_by")
+              .order("name", { ascending: true }),
           ]);
         if (meErr) throw meErr;
         if (tErr) throw tErr;
@@ -71,7 +74,7 @@ export default function CommitteeTagsPage() {
 
   const sortedTags = useMemo(
     () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
-    [tags]
+    [tags],
   );
 
   async function addTag(e: FormEvent) {
@@ -133,7 +136,7 @@ export default function CommitteeTagsPage() {
       });
       if (error) throw error;
       setTags((prev) =>
-        prev.map((t) => (t.id === tagId ? { ...t, name: clean } : t))
+        prev.map((t) => (t.id === tagId ? { ...t, name: clean } : t)),
       );
       setEditingId(null);
       setEditingName("");
@@ -151,7 +154,11 @@ export default function CommitteeTagsPage() {
   }
 
   async function deleteTag(tagId: string, tagName: string) {
-    if (!confirm(`Delete #${tagName}? This removes it from existing competencies too.`)) {
+    if (
+      !confirm(
+        `Delete #${tagName}? This removes it from existing competencies too.`,
+      )
+    ) {
       return;
     }
     setErr(null);
@@ -186,7 +193,9 @@ export default function CommitteeTagsPage() {
   if (!isChair) {
     return (
       <div className="px-8 py-8 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Tags</h1>
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+          Tags
+        </h1>
         <p className="mt-3 text-sm text-[var(--muted)]">
           You do not have access to tag management.
         </p>
@@ -205,7 +214,8 @@ export default function CommitteeTagsPage() {
         </h1>
         <div className="accent-underline mt-3" />
         <p className="mt-3 text-sm text-[var(--muted)]">
-          Add new tags for competency proposals. Changes are available immediately.
+          Add new tags for competency proposals. Changes will be available to
+          all users immediately.
         </p>
       </div>
 
@@ -272,7 +282,9 @@ export default function CommitteeTagsPage() {
             )}
             {sortedTags.map((t, idx) => (
               <tr key={t.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-3 text-xs text-[var(--muted)]">{idx + 1}</td>
+                <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                  {idx + 1}
+                </td>
                 <td className="px-4 py-3 font-medium text-[var(--foreground)]">
                   {editingId === t.id ? (
                     <input

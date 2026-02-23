@@ -382,22 +382,58 @@ export default function CompetenciesPage() {
       const { data: u2 } = await supabase.auth.getUser();
       const uid = u2.user?.id;
       if (!uid) throw new Error("Please sign in again.");
-      const { error } = await supabase.from("competencies_stage").insert({
-        name: nameTrim,
-        difficulty: propDifficulty,
-        tags: propTagIds,
-        justification: propReason.trim() || null,
-        suggested_by: uid,
-      });
-      if (error) throw error;
+      if (isChair) {
+        const { data: newCompetencyId, error: rpcErr } = await supabase.rpc(
+          "chair_create_competency",
+          {
+            p_name: nameTrim,
+            p_difficulty: propDifficulty,
+            p_tags: propTagIds,
+          },
+        );
+        if (rpcErr) throw rpcErr;
+        if (!newCompetencyId) {
+          throw new Error("Failed to add competency.");
+        }
+        const { data: inserted, error } = await supabase
+          .from("competencies")
+          .select("id, name, difficulty, tags, position, created_at")
+          .eq("id", newCompetencyId)
+          .single<CompetencyRaw>();
+        if (error) throw error;
+
+        const resolvedTags = (inserted.tags ?? [])
+          .map((id) => tagsCatalog.find((t) => t.id === id)?.name)
+          .filter((v): v is string => Boolean(v));
+        setRows((prev) => [
+          ...prev,
+          {
+            ...inserted,
+            tags: resolvedTags,
+          },
+        ]);
+      } else {
+        const { error } = await supabase.from("competencies_stage").insert({
+          name: nameTrim,
+          difficulty: propDifficulty,
+          tags: propTagIds,
+          justification: propReason.trim() || null,
+          suggested_by: uid,
+        });
+        if (error) throw error;
+      }
       setProposeOpen(false);
       setPropName("");
       setPropTagIds([]);
       setPropDifficulty("Intermediate");
       setPropReason("");
-      showToast("Competency proposal submitted.");
+      showToast(
+        isChair
+          ? "Competency added directly."
+          : "Competency proposal submitted.",
+      );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(getErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -419,17 +455,41 @@ export default function CompetenciesPage() {
       const uid = u2.user?.id;
       if (!uid) throw new Error("Please sign in again.");
       const correctIdx = cleaned.findIndex((o) => o.is_correct);
-      const { data: newId, error: rpcErr } = await supabase.rpc(
-        "committee_propose_question",
-        {
-          p_competency_id: compId,
-          p_question_text: prompt,
-          p_options: cleaned.map((o) => o.body),
-          p_correct_index: (correctIdx >= 0 ? correctIdx : 0) + 1,
-        },
-      );
-      if (rpcErr) throw rpcErr;
-      if (!newId) throw new Error("Failed to create question proposal.");
+      const safeCorrectIdx = correctIdx >= 0 ? correctIdx : 0;
+      let newId: string | null = null;
+      let directInsert = false;
+
+      if (isChair) {
+        directInsert = true;
+        const { data: questionId, error: rpcErr } = await supabase.rpc(
+          "chair_create_question",
+          {
+            p_competency_id: compId,
+            p_question_text: prompt,
+            p_options: cleaned.map((o) => o.body),
+            p_correct_index: safeCorrectIdx + 1,
+          },
+        );
+        if (rpcErr) throw rpcErr;
+        if (!questionId) {
+          throw new Error("Failed to add question.");
+        }
+        newId = questionId;
+      } else {
+        const { data: stageId, error: rpcErr } = await supabase.rpc(
+          "committee_propose_question",
+          {
+            p_competency_id: compId,
+            p_question_text: prompt,
+            p_options: cleaned.map((o) => o.body),
+            p_correct_index: safeCorrectIdx + 1,
+          },
+        );
+        if (rpcErr) throw rpcErr;
+        if (!stageId) throw new Error("Failed to create question proposal.");
+        newId = stageId;
+      }
+      if (!newId) throw new Error("Failed to save question.");
 
       // Upload optional attachments through signed URL flow and persist metadata.
       const failedUploads: string[] = [];
@@ -445,7 +505,8 @@ export default function CompetenciesPage() {
                 fileName: normalizeFileName(file.name),
                 mimeType: file.type,
                 fileSize: file.size,
-                stageId: newId,
+                stageId: directInsert ? null : newId,
+                questionId: directInsert ? newId : null,
               }),
             });
             const reqJson = (await reqRes.json()) as {
@@ -478,8 +539,8 @@ export default function CompetenciesPage() {
                 fileName: file.name,
                 mimeType: file.type,
                 fileSize: file.size,
-                stageId: newId,
-                questionId: null,
+                stageId: directInsert ? null : newId,
+                questionId: directInsert ? newId : null,
               }),
             });
             const confJson = (await confRes.json()) as { error?: string };
@@ -509,11 +570,13 @@ export default function CompetenciesPage() {
       }
       showToast(
         uploadedCount > 0
-          ? `Question submitted with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
-          : "Question proposal submitted.",
+          ? `${isChair ? "Question added" : "Question submitted"} with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
+          : isChair
+            ? "Question added directly."
+            : "Question proposal submitted.",
       );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(getErrorMessage(e));
     } finally {
       setSubmittingQ(false);
     }
