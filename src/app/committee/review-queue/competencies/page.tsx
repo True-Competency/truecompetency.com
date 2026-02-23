@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Search, X, ThumbsUp, ThumbsDown, Inbox } from "lucide-react";
+import { Search, X, Check, Inbox } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type SuggestedCompetency = {
@@ -389,7 +389,7 @@ export default function ReviewQueueCompetencies() {
                               : "bg-[color:var(--ok)]/20 text-[var(--ok)] hover:bg-[var(--ok)] hover:text-white"
                           )}
                         >
-                          <ThumbsUp size={14} />
+                          <Check size={14} />
                         </button>
                         <button
                           onClick={() => handleVote(c.id, false)}
@@ -401,7 +401,7 @@ export default function ReviewQueueCompetencies() {
                               : "bg-[color:var(--err)]/20 text-[var(--err)] hover:bg-[var(--err)] hover:text-white"
                           )}
                         >
-                          <ThumbsDown size={14} />
+                          <X size={14} />
                         </button>
                       </div>
                     </td>
