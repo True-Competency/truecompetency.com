@@ -1,9 +1,17 @@
 // src/app/committee/competencies/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Paperclip, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import {
+  GripVertical,
+  Paperclip,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Competency = {
@@ -93,6 +101,20 @@ export default function CompetenciesPage() {
   const [qDragActive, setQDragActive] = useState(false);
   const [qUploadError, setQUploadError] = useState<string | null>(null);
   const [submittingQ, setSubmittingQ] = useState(false);
+  const [isChair, setIsChair] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [reorderSaving, setReorderSaving] = useState(false);
+  const [reorderDraft, setReorderDraft] = useState<Competency[]>([]);
+  const [reorderInitialPos, setReorderInitialPos] = useState<
+    Record<string, number>
+  >({});
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: number; to: number } | null>(
+    null,
+  );
+  const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const lastMoveKeyRef = useRef<string | null>(null);
 
   // ── Data load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,6 +141,24 @@ export default function CompetenciesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (!uid || cancelled) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("committee_role")
+        .eq("id", uid)
+        .maybeSingle<{ committee_role: string | null }>();
+      if (!cancelled) setIsChair(data?.committee_role === "chief_editor");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ── Derived ──────────────────────────────────────────────────────────────
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -137,7 +177,7 @@ export default function CompetenciesPage() {
       const tagsOk =
         tagFilters.length === 0 ||
         tagFilters.every((t) =>
-          (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase())
+          (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase()),
         );
       return inSearch && tagsOk;
     });
@@ -147,6 +187,19 @@ export default function CompetenciesPage() {
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
+  }
+
+  function getErrorMessage(e: unknown) {
+    if (e instanceof Error && e.message) return e.message;
+    if (e && typeof e === "object" && "message" in e) {
+      const msg = (e as { message?: unknown }).message;
+      if (typeof msg === "string" && msg) return msg;
+    }
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return "Unexpected error.";
+    }
   }
 
   function resetQForm(preCompId = "") {
@@ -166,7 +219,8 @@ export default function CompetenciesPage() {
   function formatBytes(bytes: number) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
 
@@ -179,7 +233,7 @@ export default function CompetenciesPage() {
 
     incoming.forEach((file) => {
       const ext = file.name.includes(".")
-        ? file.name.split(".").pop()?.toLowerCase() ?? ""
+        ? (file.name.split(".").pop()?.toLowerCase() ?? "")
         : "";
       const isSupportedType =
         QUESTION_MEDIA_ALLOWED_MIME.has(file.type) ||
@@ -197,7 +251,7 @@ export default function CompetenciesPage() {
 
     setQAttachments((prev) => {
       const seen = new Set(
-        prev.map((a) => `${a.file.name}-${a.file.size}-${a.file.lastModified}`)
+        prev.map((a) => `${a.file.name}-${a.file.size}-${a.file.lastModified}`),
       );
       const next = [...prev];
       valid.forEach((file) => {
@@ -213,12 +267,12 @@ export default function CompetenciesPage() {
       const parts: string[] = [];
       if (rejectedType.length > 0) {
         parts.push(
-          `Unsupported file type: ${rejectedType.join(", ")}. Supported: JPG, PNG, WEBP, GIF, MP4, WEBM.`
+          `Unsupported file type: ${rejectedType.join(", ")}. Supported: JPG, PNG, WEBP, GIF, MP4, WEBM.`,
         );
       }
       if (rejectedSize.length > 0) {
         parts.push(
-          `File too large: ${rejectedSize.join(", ")}. Max size is 50 MB per file.`
+          `File too large: ${rejectedSize.join(", ")}. Max size is 50 MB per file.`,
         );
       }
       setQUploadError(parts.join(" "));
@@ -229,6 +283,68 @@ export default function CompetenciesPage() {
 
   function normalizeFileName(name: string) {
     return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  }
+
+  function openReorderModal() {
+    const initialMap: Record<string, number> = {};
+    rows.forEach((c, idx) => {
+      initialMap[c.id] = c.position ?? idx + 1;
+    });
+    setReorderInitialPos(initialMap);
+    setReorderDraft(rows.slice());
+    setLastMove(null);
+    setMoveHistory([]);
+    lastMoveKeyRef.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
+    setReorderOpen(true);
+  }
+
+  function moveDraftRow(fromIndex: number, toIndex: number) {
+    setReorderDraft((prev) => {
+      if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) {
+        return prev;
+      }
+      if (fromIndex === toIndex) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      const moveKey = `${fromIndex + 1}->${toIndex + 1}`;
+      if (lastMoveKeyRef.current !== moveKey) {
+        setLastMove({ from: fromIndex + 1, to: toIndex + 1 });
+        setMoveHistory((prevHistory) => [
+          ...prevHistory,
+          `${fromIndex + 1} -> ${toIndex + 1}`,
+        ]);
+        lastMoveKeyRef.current = moveKey;
+      }
+      return next;
+    });
+  }
+
+  async function saveReorder() {
+    if (!isChair) return;
+    try {
+      setReorderSaving(true);
+      setErr(null);
+      const orderedIds = reorderDraft.map((c) => c.id);
+      const { error } = await supabase.rpc("chair_reorder_competencies", {
+        p_ordered_ids: orderedIds,
+      });
+      if (error) throw error;
+      setRows(
+        reorderDraft.map((c, idx) => ({
+          ...c,
+          position: idx + 1,
+        })),
+      );
+      setReorderOpen(false);
+      showToast("Competency order updated.");
+    } catch (e) {
+      setErr(getErrorMessage(e));
+    } finally {
+      setReorderSaving(false);
+    }
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -285,7 +401,7 @@ export default function CompetenciesPage() {
           p_question_text: prompt,
           p_options: cleaned.map((o) => o.body),
           p_correct_index: (correctIdx >= 0 ? correctIdx : 0) + 1,
-        }
+        },
       );
       if (rpcErr) throw rpcErr;
       if (!newId) throw new Error("Failed to create question proposal.");
@@ -314,7 +430,7 @@ export default function CompetenciesPage() {
             };
             if (!reqRes.ok || !reqJson.signedUrl || !reqJson.storagePath) {
               throw new Error(
-                reqJson.error || "Failed to initialize file upload."
+                reqJson.error || "Failed to initialize file upload.",
               );
             }
 
@@ -326,9 +442,7 @@ export default function CompetenciesPage() {
               body: file,
             });
             if (!uploadRes.ok) {
-              throw new Error(
-                `Storage rejected upload (${uploadRes.status}).`
-              );
+              throw new Error(`Storage rejected upload (${uploadRes.status}).`);
             }
 
             const confRes = await fetch("/api/upload/confirm", {
@@ -346,7 +460,7 @@ export default function CompetenciesPage() {
             const confJson = (await confRes.json()) as { error?: string };
             if (!confRes.ok) {
               throw new Error(
-                confJson.error || "Failed to save file metadata."
+                confJson.error || "Failed to save file metadata.",
               );
             }
 
@@ -364,14 +478,14 @@ export default function CompetenciesPage() {
       if (failedUploads.length > 0) {
         setErr(
           `Question submitted, but ${failedUploads.length} attachment(s) failed: ${failedUploads.join(
-            ", "
-          )}.`
+            ", ",
+          )}.`,
         );
       }
       showToast(
         uploadedCount > 0
           ? `Question submitted with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
-          : "Question proposal submitted."
+          : "Question proposal submitted.",
       );
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -394,13 +508,19 @@ export default function CompetenciesPage() {
           </h1>
           <div className="accent-underline mt-3" />
           <p className="mt-3 text-sm text-[var(--muted)]">
-            {loading
-              ? "Loading…"
-              : `${rows.length} active competencies`}
+            {loading ? "Loading…" : `${rows.length} active competencies`}
           </p>
         </div>
 
         <div className="flex gap-2 flex-shrink-0 mt-1">
+          {isChair && (
+            <button
+              onClick={openReorderModal}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+            >
+              Reorder competencies
+            </button>
+          )}
           <button
             onClick={() => setProposeOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
@@ -466,14 +586,14 @@ export default function CompetenciesPage() {
                   setTagFilters((prev) =>
                     prev.includes(t)
                       ? prev.filter((x) => x !== t)
-                      : [...prev, t]
+                      : [...prev, t],
                   )
                 }
                 className={cls(
                   "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
                   tagFilters.includes(t)
                     ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                    : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                    : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
                 )}
               >
                 {t}
@@ -528,7 +648,7 @@ export default function CompetenciesPage() {
                   className="border-t border-[var(--border)] hover:bg-[color:var(--accent)]/3 transition-colors"
                 >
                   <td className="px-4 py-3 align-middle text-xs text-[var(--muted)]">
-                    {idx + 1}
+                    {c.position ?? idx + 1}
                   </td>
                   <td className="px-4 py-3 align-middle font-medium text-[var(--foreground)]">
                     {c.name}
@@ -536,7 +656,10 @@ export default function CompetenciesPage() {
                   <td className="px-4 py-3 align-middle">
                     <span
                       className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                      style={{ background: diffColor(c.difficulty), color: "#000" }}
+                      style={{
+                        background: diffColor(c.difficulty),
+                        color: "#000",
+                      }}
                     >
                       {c.difficulty}
                     </span>
@@ -575,6 +698,160 @@ export default function CompetenciesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Chair: Reorder Competencies Modal ── */}
+      {reorderOpen && isChair && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setReorderOpen(false)}
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl h-[min(90vh,860px)] rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6 flex flex-col"
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-4">
+              <h3 className="text-base font-semibold text-[var(--foreground)]">
+                Reorder competencies
+              </h3>
+              <button
+                onClick={() => setReorderOpen(false)}
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <p className="text-sm text-[var(--muted)] mb-3">
+              Changes here update the competency order for everyone in the
+              committee dashboard. Please review carefully before saving.
+            </p>
+
+            <div
+              className="space-y-2 flex-1 overflow-y-auto pr-1"
+            >
+              {reorderDraft.map((c, idx) => (
+                <div
+                  key={c.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragIndex(idx);
+                    setDropIndex(idx);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", c.id);
+                  }}
+                  onDragEnter={() => {
+                    if (dragIndex !== null) setDropIndex(idx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex === null) return;
+                    moveDraftRow(dragIndex, dropIndex ?? idx);
+                    setDragIndex(null);
+                    setDropIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragIndex(null);
+                    setDropIndex(null);
+                  }}
+                  className={cls(
+                    "flex items-start gap-3 rounded-xl border px-3 py-3 min-h-[76px] transition-all duration-150",
+                    dragIndex === idx &&
+                      "border-[color:var(--accent)]/70 bg-[var(--field)]/60 opacity-65 scale-[0.995]",
+                    dropIndex === idx &&
+                      dragIndex !== null &&
+                      dragIndex !== idx &&
+                      "border-[color:var(--accent)]/70 bg-[var(--field)]/90",
+                    dragIndex !== idx &&
+                      !(dropIndex === idx && dragIndex !== null) &&
+                      "border-[var(--border)] bg-[var(--field)]"
+                  )}
+                >
+                  <span className="w-8 text-xs text-[var(--muted)] text-right pt-1 select-none">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--foreground)] leading-snug line-clamp-2">
+                      {c.name}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{
+                          background: diffColor(c.difficulty),
+                          color: "#000",
+                        }}
+                      >
+                        {c.difficulty}
+                      </span>
+                      {(c.tags ?? []).slice(0, 4).map((t) => (
+                        <span
+                          key={`${c.id}_${t}`}
+                          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <span
+                    className="pt-1.5 text-[var(--muted)] cursor-grab active:cursor-grabbing"
+                    title="Drag to reorder"
+                    aria-label={`Drag ${c.name} to reorder`}
+                  >
+                    <GripVertical size={16} />
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-xs text-[var(--muted)] flex-shrink-0">
+              {lastMove ? (
+                <>
+                  Changes made:{" "}
+                  <span className="font-semibold text-[var(--foreground)]">
+                    {moveHistory.join(", ")}
+                  </span>{" "}
+                  ·{" "}
+                  <span className="font-semibold text-[var(--foreground)]">
+                    {
+                      reorderDraft.filter(
+                        (c, idx) =>
+                          (reorderInitialPos[c.id] ?? idx + 1) !== idx + 1,
+                      ).length
+                    }
+                  </span>{" "}
+                  item(s) reordered
+                </>
+              ) : (
+                "No order changes yet."
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4 flex-shrink-0">
+              <button
+                onClick={() => setReorderOpen(false)}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveReorder}
+                disabled={reorderSaving}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90"
+                style={{ background: "var(--accent)" }}
+              >
+                {reorderSaving ? "Saving…" : "Save order"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -618,7 +895,7 @@ export default function CompetenciesPage() {
                   value={propDifficulty}
                   onChange={(e) =>
                     setPropDifficulty(
-                      e.target.value as (typeof DIFF_ORDER)[number]
+                      e.target.value as (typeof DIFF_ORDER)[number],
                     )
                   }
                   className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none w-full"
@@ -643,14 +920,14 @@ export default function CompetenciesPage() {
                           setPropTags((prev) =>
                             prev.includes(t)
                               ? prev.filter((x) => x !== t)
-                              : [...prev, t]
+                              : [...prev, t],
                           )
                         }
                         className={cls(
                           "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
                           propTags.includes(t)
                             ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                            : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                            : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
                         )}
                       >
                         {t}
@@ -744,7 +1021,9 @@ export default function CompetenciesPage() {
               </label>
 
               <div className="grid gap-2 text-sm">
-                <span className="text-[var(--muted)]">Attachments (optional)</span>
+                <span className="text-[var(--muted)]">
+                  Attachments (optional)
+                </span>
                 <div
                   onDragEnter={(e) => {
                     e.preventDefault();
@@ -770,7 +1049,7 @@ export default function CompetenciesPage() {
                     "rounded-2xl border-2 border-dashed p-4 transition-all",
                     qDragActive
                       ? "border-[color:var(--accent)] bg-[color:var(--accent)]/8"
-                      : "border-[var(--border)] bg-[var(--field)]"
+                      : "border-[var(--border)] bg-[var(--field)]",
                   )}
                 >
                   <div className="flex flex-col items-center gap-2 text-center">
@@ -816,7 +1095,10 @@ export default function CompetenciesPage() {
                         key={item.id}
                         className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2"
                       >
-                        <Paperclip size={13} className="text-[var(--muted)] flex-shrink-0" />
+                        <Paperclip
+                          size={13}
+                          className="text-[var(--muted)] flex-shrink-0"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-xs font-medium text-[var(--foreground)]">
                             {item.file.name}
@@ -829,7 +1111,7 @@ export default function CompetenciesPage() {
                           type="button"
                           onClick={() =>
                             setQAttachments((prev) =>
-                              prev.filter((a) => a.id !== item.id)
+                              prev.filter((a) => a.id !== item.id),
                             )
                           }
                           className="h-7 w-7 grid place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] hover:text-[var(--err)] hover:border-[color:var(--err)]/40 transition-colors"
@@ -872,7 +1154,7 @@ export default function CompetenciesPage() {
                               prev.map((x, i) => ({
                                 ...x,
                                 is_correct: i === idx,
-                              }))
+                              })),
                             )
                           }
                         />
@@ -886,8 +1168,8 @@ export default function CompetenciesPage() {
                         onChange={(e) =>
                           setQOptions((prev) =>
                             prev.map((x, i) =>
-                              i === idx ? { ...x, body: e.target.value } : x
-                            )
+                              i === idx ? { ...x, body: e.target.value } : x,
+                            ),
                           )
                         }
                         placeholder="Answer text"
