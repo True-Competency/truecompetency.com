@@ -446,14 +446,6 @@ function GlowingLogoCard() {
         className="relative z-[1] object-contain drop-shadow-[0_30px_90px_color-mix(in_oklab,var(--accent)_45%,transparent)]"
         priority
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[2rem] animate-pulse-glow"
-        style={{
-          filter:
-            "drop-shadow(0 0 80px color-mix(in oklab, var(--accent) 35%, transparent))",
-        }}
-      />
     </div>
   );
 }
