@@ -11,6 +11,7 @@ import {
   BookOpen,
   ClipboardList,
   Users,
+  Tags,
   ChevronRight,
   Crown,
   PanelLeftClose,
@@ -300,6 +301,22 @@ export default function CommitteeLayout({
             <Users size={16} />
             {!collapsed && <span>Members</span>}
           </Link>
+
+          {/* Tags (chair only) */}
+          {profile?.committee_role === "chief_editor" && (
+            <Link
+              href="/committee/tags"
+              title="Tags"
+              className={`${navLinkBase} ${
+                collapsed
+                  ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                  : ""
+              } ${isActive("/committee/tags") ? navActive : navIdle}`}
+            >
+              <Tags size={16} />
+              {!collapsed && <span>Tags</span>}
+            </Link>
+          )}
         </nav>
 
         {/* Profile footer menu */}
