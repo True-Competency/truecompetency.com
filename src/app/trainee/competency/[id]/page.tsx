@@ -14,6 +14,15 @@ type Competency = {
   created_at: string;
 };
 
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type Question = {
   id: string;
   competency_id: string;
@@ -111,15 +120,29 @@ export default function TraineeCompetencyPage() {
         }
 
         // competency
-        const { data: comp, error: cerr } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags, created_at")
-          .eq("id", competencyId)
-          .single<Competency>();
+        const [{ data: comp, error: cerr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies")
+              .select("id, name, difficulty, tags, created_at")
+              .eq("id", competencyId)
+              .single<CompetencyRaw>(),
+            supabase.from("tags").select("id, name"),
+          ]);
         if (cerr) throw cerr;
+        if (tagsErr) throw tagsErr;
         if (!comp) throw new Error("Competency not found.");
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const resolvedComp: Competency = {
+          ...comp,
+          tags: (comp.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        };
         if (cancelled) return;
-        setCompetency(comp);
+        setCompetency(resolvedComp);
 
         // questions
         const { data: qs, error: qerr } = await supabase

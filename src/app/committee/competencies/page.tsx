@@ -34,6 +34,15 @@ type QuestionAttachment = {
   file: File;
 };
 
+type TagRow = {
+  id: string;
+  name: string;
+};
+
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
 const QUESTION_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 const QUESTION_MEDIA_ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -70,6 +79,7 @@ function diffColor(d: string): string {
 // ── Component ──────────────────────────────────────────────────────────────
 export default function CompetenciesPage() {
   const [rows, setRows] = useState<Competency[]>([]);
+  const [tagsCatalog, setTagsCatalog] = useState<TagRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -83,7 +93,7 @@ export default function CompetenciesPage() {
   const [propName, setPropName] = useState("");
   const [propDifficulty, setPropDifficulty] =
     useState<(typeof DIFF_ORDER)[number]>("Intermediate");
-  const [propTags, setPropTags] = useState<string[]>([]);
+  const [propTagIds, setPropTagIds] = useState<string[]>([]);
   const [propReason, setPropReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -123,13 +133,30 @@ export default function CompetenciesPage() {
       try {
         setLoading(true);
         setErr(null);
-
-        const { data, error } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags, position, created_at")
-          .order("position", { ascending: true, nullsFirst: false });
+        const [{ data, error }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies")
+              .select("id, name, difficulty, tags, position, created_at")
+              .order("position", { ascending: true, nullsFirst: false }),
+            supabase.from("tags").select("id, name").order("name", { ascending: true }),
+          ]);
         if (error) throw error;
-        if (!cancelled) setRows((data ?? []) as Competency[]);
+        if (tagsErr) throw tagsErr;
+
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const resolved = ((data ?? []) as CompetencyRaw[]).map((c) => ({
+          ...c,
+          tags: (c.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
+        if (!cancelled) {
+          setRows(resolved);
+          setTagsCatalog((tagsData ?? []) as TagRow[]);
+        }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
       } finally {
@@ -160,12 +187,6 @@ export default function CompetenciesPage() {
   }, []);
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    rows.forEach((r) => (r.tags ?? []).forEach((t) => set.add(t)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
-
   const list = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return rows.filter((r) => {
@@ -182,6 +203,10 @@ export default function CompetenciesPage() {
       return inSearch && tagsOk;
     });
   }, [rows, query, tagFilters]);
+  const tagOptions = useMemo(
+    () => tagsCatalog.map((t) => t.name),
+    [tagsCatalog],
+  );
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function showToast(msg: string) {
@@ -360,14 +385,14 @@ export default function CompetenciesPage() {
       const { error } = await supabase.from("competencies_stage").insert({
         name: nameTrim,
         difficulty: propDifficulty,
-        tags: propTags,
+        tags: propTagIds,
         justification: propReason.trim() || null,
         suggested_by: uid,
       });
       if (error) throw error;
       setProposeOpen(false);
       setPropName("");
-      setPropTags([]);
+      setPropTagIds([]);
       setPropDifficulty("Intermediate");
       setPropReason("");
       showToast("Competency proposal submitted.");
@@ -577,9 +602,9 @@ export default function CompetenciesPage() {
           )}
         </div>
 
-        {allTags.length > 0 && (
+        {tagOptions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {allTags.map((t) => (
+            {tagOptions.map((t) => (
               <button
                 key={t}
                 onClick={() =>
@@ -596,7 +621,7 @@ export default function CompetenciesPage() {
                     : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
                 )}
               >
-                {t}
+                #{t}
               </button>
             ))}
           </div>
@@ -672,7 +697,7 @@ export default function CompetenciesPage() {
                             key={t}
                             className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
                           >
-                            {t}
+                            #{t}
                           </span>
                         ))}
                       </div>
@@ -796,7 +821,7 @@ export default function CompetenciesPage() {
                           key={`${c.id}_${t}`}
                           className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
                         >
-                          {t}
+                          #{t}
                         </span>
                       ))}
                     </div>
@@ -908,29 +933,29 @@ export default function CompetenciesPage() {
                 </select>
               </label>
 
-              {allTags.length > 0 && (
+              {tagsCatalog.length > 0 && (
                 <div className="grid gap-2 text-sm">
                   <span className="text-[var(--muted)]">Tags</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {allTags.map((t) => (
+                    {tagsCatalog.map((t) => (
                       <button
-                        key={t}
+                        key={t.id}
                         type="button"
                         onClick={() =>
-                          setPropTags((prev) =>
-                            prev.includes(t)
-                              ? prev.filter((x) => x !== t)
-                              : [...prev, t],
+                          setPropTagIds((prev) =>
+                            prev.includes(t.id)
+                              ? prev.filter((x) => x !== t.id)
+                              : [...prev, t.id],
                           )
                         }
                         className={cls(
                           "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
-                          propTags.includes(t)
+                          propTagIds.includes(t.id)
                             ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
                             : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
                         )}
                       >
-                        {t}
+                        #{t.name}
                       </button>
                     ))}
                   </div>

@@ -13,6 +13,15 @@ type Competency = {
   tags: string[] | null;
 };
 
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type QuestionOption = {
   label: string;
   body: string;
@@ -84,10 +93,22 @@ export default function ReviewQueueQuestions() {
         if (uid && !cancelled) setMe({ id: uid });
 
         // Active competencies (for context)
-        const { data: comps, error: cErr } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags");
+        const [{ data: comps, error: cErr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase.from("competencies").select("id, name, difficulty, tags"),
+            supabase.from("tags").select("id, name"),
+          ]);
         if (cErr) throw cErr;
+        if (tagsErr) throw tagsErr;
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const compsResolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+          ...c,
+          tags: (c.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
 
         // Question proposals
         const { data: qs, error: qErr } = await supabase
@@ -212,7 +233,7 @@ export default function ReviewQueueQuestions() {
         );
 
         if (!cancelled) {
-          setCompetencies((comps ?? []) as Competency[]);
+          setCompetencies(compsResolved);
           setQuestions(
             qRows.map((q) => ({
               ...q,
@@ -415,7 +436,7 @@ export default function ReviewQueueQuestions() {
                               key={t}
                               className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
                             >
-                              {t}
+                              #{t}
                             </span>
                           ))}
                         </div>

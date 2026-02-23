@@ -49,6 +49,15 @@ type Competency = {
   position: number | null;
 };
 
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 /* ---------------- Page ---------------- */
 export default function InstructorClient() {
   const router = useRouter();
@@ -121,6 +130,7 @@ export default function InstructorClient() {
 
   // Competencies (used for assign modal)
   const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   // KPI widgets
   const [kpiActiveTrainees, setKpiActiveTrainees] = useState(0);
@@ -342,15 +352,30 @@ export default function InstructorClient() {
     (async () => {
       try {
         // No longer using compsErr/compsLoading for browse modal
-        const { data: comps, error: cErr } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags, position")
-          .order("position", { ascending: true, nullsFirst: false })
-          .returns<Competency[]>();
+        const [{ data: comps, error: cErr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies")
+              .select("id, name, difficulty, tags, position")
+              .order("position", { ascending: true, nullsFirst: false }),
+            supabase.from("tags").select("id, name").order("name", { ascending: true }),
+          ]);
         if (cErr) throw cErr;
+        if (tagsErr) throw tagsErr;
+
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const compsResolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+          ...c,
+          tags: (c.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
 
         if (!cancelled) {
-          setCompetencies(comps ?? []);
+          setCompetencies(compsResolved);
+          setTagOptions(((tagsData ?? []) as TagRow[]).map((t) => t.name));
         }
       } catch {
         // No longer using compsErr/compsLoading for browse modal
@@ -374,13 +399,7 @@ export default function InstructorClient() {
     );
   }, [studentsQ, students]);
 
-  const allCompTags = useMemo(() => {
-    const bag = new Set<string>();
-    (competencies ?? []).forEach((c) =>
-      (c.tags ?? []).forEach((t) => bag.add(t))
-    );
-    return Array.from(bag).sort((a, b) => a.localeCompare(b));
-  }, [competencies]);
+  const allCompTags = useMemo(() => tagOptions, [tagOptions]);
 
   // Derived list of trainees for Assign modal
   const filteredTraineesForAssign = useMemo(() => {
@@ -944,7 +963,7 @@ export default function InstructorClient() {
                           : "text-[var(--foreground)]/80 bg-[var(--surface)] border-[var(--border)]",
                       ].join(" ")}
                     >
-                      {t}
+                      #{t}
                     </button>
                   ))}
                   {allCompTags.length === 0 && (
@@ -1005,7 +1024,7 @@ export default function InstructorClient() {
                                 key={t}
                                 className="text-[10px] rounded-full bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 text-[var(--foreground)]/85"
                               >
-                                {t}
+                                #{t}
                               </span>
                             ))}
                           </div>

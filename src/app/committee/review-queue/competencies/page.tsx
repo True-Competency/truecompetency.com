@@ -15,6 +15,15 @@ type SuggestedCompetency = {
   suggested_by: string | null;
 };
 
+type SuggestedCompetencyRaw = Omit<SuggestedCompetency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type Profile = {
   id: string;
 };
@@ -46,6 +55,7 @@ export default function ReviewQueueCompetencies() {
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   // ── Data load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -60,12 +70,25 @@ export default function ReviewQueueCompetencies() {
         if (uid && !cancelled) setMe({ id: uid });
 
         // Suggested competencies
-        const { data: sug, error: sErr } = await supabase
-          .from("competencies_stage")
-          .select("id, name, difficulty, tags, justification, suggested_by")
-          .order("name", { ascending: true });
+        const [{ data: sug, error: sErr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies_stage")
+              .select("id, name, difficulty, tags, justification, suggested_by")
+              .order("name", { ascending: true }),
+            supabase.from("tags").select("id, name").order("name", { ascending: true }),
+          ]);
         if (sErr) throw sErr;
-        const sugRows = (sug ?? []) as SuggestedCompetency[];
+        if (tagsErr) throw tagsErr;
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const sugRows = ((sug ?? []) as SuggestedCompetencyRaw[]).map((r) => ({
+          ...r,
+          tags: (r.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
 
         // Proposer names
         const proposerIds = Array.from(
@@ -117,6 +140,7 @@ export default function ReviewQueueCompetencies() {
 
         if (!cancelled) {
           setSuggested(sugRows);
+          setTagOptions(((tagsData ?? []) as TagRow[]).map((t) => t.name));
           setSuggestedByNames(namesMap);
           setMyVotes(myMap);
           setVoteCounts(countsMap);
@@ -131,12 +155,6 @@ export default function ReviewQueueCompetencies() {
       cancelled = true;
     };
   }, []);
-
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    suggested.forEach((r) => (r.tags ?? []).forEach((t) => set.add(t)));
-    return Array.from(set).sort();
-  }, [suggested]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -234,9 +252,9 @@ export default function ReviewQueueCompetencies() {
             </button>
           )}
         </div>
-        {allTags.length > 0 && (
+        {tagOptions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {allTags.map((t) => (
+            {tagOptions.map((t) => (
               <button
                 key={t}
                 onClick={() =>
@@ -253,7 +271,7 @@ export default function ReviewQueueCompetencies() {
                     : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]"
                 )}
               >
-                {t}
+                #{t}
               </button>
             ))}
           </div>
@@ -342,7 +360,7 @@ export default function ReviewQueueCompetencies() {
                               key={t}
                               className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
                             >
-                              {t}
+                              #{t}
                             </span>
                           ))}
                         </div>

@@ -22,6 +22,15 @@ type Competency = {
   tags: string[] | null;
 };
 
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type AssignmentRow = {
   student_id: string;
   competency_id: string;
@@ -155,12 +164,25 @@ export default function InstructorTraineeDetailPage() {
       }
 
       // 3) Competencies
-      const { data: comps, error: cErr } = await supabase
-        .from("competencies")
-        .select("id,name,difficulty,tags")
-        .in("id", compIds)
-        .returns<Competency[]>();
+      const [{ data: comps, error: cErr }, { data: tagsData, error: tagsErr }] =
+        await Promise.all([
+          supabase
+            .from("competencies")
+            .select("id,name,difficulty,tags")
+            .in("id", compIds),
+          supabase.from("tags").select("id, name"),
+        ]);
       if (cErr) throw cErr;
+      if (tagsErr) throw tagsErr;
+      const tagNameById = new Map(
+        ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+      );
+      const compsResolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+        ...c,
+        tags: (c.tags ?? [])
+          .map((id) => tagNameById.get(id))
+          .filter((v): v is string => Boolean(v)),
+      }));
 
       // 4) Progress
       const { data: progress, error: pErr } = await supabase
@@ -184,7 +206,7 @@ export default function InstructorTraineeDetailPage() {
 
       const hasQ = new Set((qRows ?? []).map((q) => q.competency_id));
 
-      const list: Item[] = (comps ?? []).map((c) => ({
+      const list: Item[] = compsResolved.map((c) => ({
         competency: c,
         pct: pctByComp.get(c.id) ?? 0,
         hasQuestions: hasQ.has(c.id),
@@ -398,7 +420,7 @@ export default function InstructorTraineeDetailPage() {
                           key={t}
                           className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[var(--foreground)]/80"
                         >
-                          {t}
+                          #{t}
                         </span>
                       ))}
                     </div>

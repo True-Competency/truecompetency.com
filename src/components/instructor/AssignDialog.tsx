@@ -11,6 +11,15 @@ type Competency = {
   position: number | null;
 };
 
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type Props = {
   studentId: string;
   open: boolean;
@@ -45,14 +54,28 @@ export default function AssignDialog({
       setErr(null);
       try {
         // 1) Load all competencies
-        const { data: comps, error: cErr } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags, position")
-          .order("position", { ascending: true, nullsFirst: false })
-          .returns<Competency[]>();
+        const [{ data: comps, error: cErr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies")
+              .select("id, name, difficulty, tags, position")
+              .order("position", { ascending: true, nullsFirst: false }),
+            supabase.from("tags").select("id, name"),
+          ]);
         if (cErr) throw cErr;
+        if (tagsErr) throw tagsErr;
 
-        if (!cancelled) setAllComps(comps ?? []);
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const resolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+          ...c,
+          tags: (c.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
+
+        if (!cancelled) setAllComps(resolved);
 
         // 2) Load assignments for this student
         // We use student_competency_progress as "assignment indicator" (adapt if you have a separate join table)

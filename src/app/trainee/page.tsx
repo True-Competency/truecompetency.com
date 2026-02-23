@@ -34,6 +34,15 @@ type Competency = {
   created_at?: string | null;
 };
 
+type TagRow = {
+  id: string;
+  name: string;
+};
+
+type CompetencyRaw = Omit<Competency, "tags"> & {
+  tags: string[] | null; // UUID[] from DB
+};
+
 type ProgressRow = {
   student_id: string;
   competency_id: string;
@@ -96,6 +105,7 @@ export default function TraineeDashboard() {
 
   // data
   const [allComps, setAllComps] = useState<Competency[]>([]);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<Set<string>>(new Set()); // enrolled ids
   const [progressByComp, setProgressByComp] = useState<
     Map<string, ProgressRow>
@@ -168,21 +178,34 @@ export default function TraineeDashboard() {
         setGreetingName(name || prof.email || "there");
 
         // all competencies
-        const { data: comps, error: compsErr } = await supabase
-          .from("competencies")
-          .select("id, name, difficulty, tags, position, test_question, created_at")
-          .order("position", { ascending: true, nullsFirst: false })
-          .returns<Competency[]>();
+        const [{ data: comps, error: compsErr }, { data: tagsData, error: tagsErr }] =
+          await Promise.all([
+            supabase
+              .from("competencies")
+              .select("id, name, difficulty, tags, position, test_question, created_at")
+              .order("position", { ascending: true, nullsFirst: false }),
+            supabase.from("tags").select("id, name").order("name", { ascending: true }),
+          ]);
         if (compsErr) throw compsErr;
+        if (tagsErr) throw tagsErr;
         if (cancelled) return;
 
-        const sorted = comps ?? [];
+        const tagNameById = new Map(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        const sorted = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+          ...c,
+          tags: (c.tags ?? [])
+            .map((id) => tagNameById.get(id))
+            .filter((v): v is string => Boolean(v)),
+        }));
         setAllComps(sorted);
+        setTagOptions(((tagsData ?? []) as TagRow[]).map((t) => t.name));
         const compTagLookup = new Map<string, string[]>();
         sorted.forEach((c) => {
           compTagLookup.set(
             c.id,
-            (c.tags ?? []).map((t) => t.trim()).filter(Boolean)
+            (c.tags ?? []).map((t) => t.trim()).filter(Boolean),
           );
         });
 
@@ -436,11 +459,7 @@ export default function TraineeDashboard() {
   );
 
   /* ---------- derive filters & splits ---------- */
-  const allTags = useMemo(() => {
-    const bag = new Set<string>();
-    allComps.forEach((c) => (c.tags ?? []).forEach((t) => bag.add(t)));
-    return Array.from(bag).sort((a, b) => a.localeCompare(b));
-  }, [allComps]);
+  const allTags = useMemo(() => tagOptions, [tagOptions]);
 
   const filtered = useMemo(() => {
     let list = allComps;
@@ -909,7 +928,7 @@ export default function TraineeDashboard() {
                       }}
                       title={t}
                     >
-                      {t}
+                      #{t}
                     </button>
                   ))}
                   {allTags.length === 0 && (
@@ -1044,7 +1063,7 @@ export default function TraineeDashboard() {
                         {!!c.tags?.length && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {c.tags!.slice(0, 6).map((t) => (
-                              <Tag key={t}>{t}</Tag>
+                              <Tag key={t}>#{t}</Tag>
                             ))}
                           </div>
                         )}
@@ -1174,7 +1193,7 @@ export default function TraineeDashboard() {
                 }}
                 title={t}
               >
-                {t}
+                #{t}
               </button>
             ))}
             {allTags.length === 0 && (
@@ -1247,7 +1266,7 @@ export default function TraineeDashboard() {
                     {!!c.tags?.length && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {c.tags!.slice(0, 6).map((t: string) => (
-                          <Tag key={t}>{t}</Tag>
+                          <Tag key={t}>#{t}</Tag>
                         ))}
                       </div>
                     )}
@@ -1336,7 +1355,7 @@ export default function TraineeDashboard() {
                     {!!c.tags?.length && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {c.tags!.slice(0, 6).map((t) => (
-                          <Tag key={t}>{t}</Tag>
+                          <Tag key={t}>#{t}</Tag>
                         ))}
                       </div>
                     )}
