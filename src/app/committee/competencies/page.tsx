@@ -11,6 +11,7 @@ type Competency = {
   name: string;
   difficulty: string;
   tags: string[] | null;
+  position: number | null;
   created_at: string;
 };
 
@@ -103,8 +104,8 @@ export default function CompetenciesPage() {
 
         const { data, error } = await supabase
           .from("competencies")
-          .select("id, name, difficulty, tags, created_at")
-          .order("created_at", { ascending: false });
+          .select("id, name, difficulty, tags, position, created_at")
+          .order("position", { ascending: true, nullsFirst: false });
         if (error) throw error;
         if (!cancelled) setRows((data ?? []) as Competency[]);
       } catch (e) {
@@ -127,33 +128,19 @@ export default function CompetenciesPage() {
 
   const list = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return rows
-      .filter((r) => {
-        const inSearch =
-          !needle ||
-          r.name.toLowerCase().includes(needle) ||
-          r.difficulty.toLowerCase().includes(needle) ||
-          (r.tags ?? []).some((t) => t.toLowerCase().includes(needle));
-        const tagsOk =
-          tagFilters.length === 0 ||
-          tagFilters.every((t) =>
-            (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase())
-          );
-        return inSearch && tagsOk;
-      })
-      .sort((a, b) => {
-        const order = (d: string) => {
-          const v = d.toLowerCase();
-          if (v === "beginner") return 0;
-          if (v === "intermediate") return 1;
-          if (v === "expert") return 2;
-          return 3;
-        };
-        const da = order(a.difficulty),
-          db = order(b.difficulty);
-        if (da !== db) return da - db;
-        return a.name.localeCompare(b.name);
-      });
+    return rows.filter((r) => {
+      const inSearch =
+        !needle ||
+        r.name.toLowerCase().includes(needle) ||
+        r.difficulty.toLowerCase().includes(needle) ||
+        (r.tags ?? []).some((t) => t.toLowerCase().includes(needle));
+      const tagsOk =
+        tagFilters.length === 0 ||
+        tagFilters.every((t) =>
+          (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase())
+        );
+      return inSearch && tagsOk;
+    });
   }, [rows, query, tagFilters]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -737,14 +724,11 @@ export default function CompetenciesPage() {
                   className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none w-full"
                 >
                   <option value="">Select a competency…</option>
-                  {rows
-                    .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.difficulty})
-                      </option>
-                    ))}
+                  {rows.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.difficulty})
+                    </option>
+                  ))}
                 </select>
               </label>
 

@@ -46,12 +46,7 @@ type Competency = {
   name: string | null;
   difficulty: string | null; // beginner | intermediate | expert
   tags: string[] | null;
-};
-
-const DIFF_ORDER: Record<string, number> = {
-  beginner: 0,
-  intermediate: 1,
-  expert: 2,
+  position: number | null;
 };
 
 /* ---------------- Page ---------------- */
@@ -349,21 +344,13 @@ export default function InstructorClient() {
         // No longer using compsErr/compsLoading for browse modal
         const { data: comps, error: cErr } = await supabase
           .from("competencies")
-          .select("id, name, difficulty, tags")
+          .select("id, name, difficulty, tags, position")
+          .order("position", { ascending: true, nullsFirst: false })
           .returns<Competency[]>();
         if (cErr) throw cErr;
 
-        const sorted = (comps ?? []).slice().sort((a, b) => {
-          const da = DIFF_ORDER[(a.difficulty ?? "").toLowerCase()] ?? 99;
-          const db = DIFF_ORDER[(b.difficulty ?? "").toLowerCase()] ?? 99;
-          if (da !== db) return da - db;
-          const an = (a.name ?? "").toLowerCase();
-          const bn = (b.name ?? "").toLowerCase();
-          return an.localeCompare(bn);
-        });
-
         if (!cancelled) {
-          setCompetencies(sorted);
+          setCompetencies(comps ?? []);
         }
       } catch {
         // No longer using compsErr/compsLoading for browse modal

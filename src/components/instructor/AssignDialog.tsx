@@ -8,6 +8,7 @@ type Competency = {
   name: string | null;
   difficulty: string | null;
   tags: string[] | null;
+  position: number | null;
 };
 
 type Props = {
@@ -46,8 +47,8 @@ export default function AssignDialog({
         // 1) Load all competencies
         const { data: comps, error: cErr } = await supabase
           .from("competencies")
-          .select("id, name, difficulty, tags")
-          .order("name", { ascending: true })
+          .select("id, name, difficulty, tags, position")
+          .order("position", { ascending: true, nullsFirst: false })
           .returns<Competency[]>();
         if (cErr) throw cErr;
 

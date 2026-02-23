@@ -29,6 +29,7 @@ type Competency = {
   name: string | null;
   difficulty: string | null; // beginner | intermediate | expert
   tags: string[] | null;
+  position?: number | null;
   test_question?: string | null;
   created_at?: string | null;
 };
@@ -78,13 +79,6 @@ type TraineeLeaderboardEntry = {
 type TagLeaderboardEntry = {
   tag: string;
   completed: number;
-};
-
-/* ---------- constants ---------- */
-const DIFF_ORDER: Record<string, number> = {
-  beginner: 0,
-  intermediate: 1,
-  expert: 2,
 };
 
 const NOT_SPECIFIED_COUNTRY_LABEL = "Not specified";
@@ -176,20 +170,13 @@ export default function TraineeDashboard() {
         // all competencies
         const { data: comps, error: compsErr } = await supabase
           .from("competencies")
-          .select("id, name, difficulty, tags, test_question, created_at")
+          .select("id, name, difficulty, tags, position, test_question, created_at")
+          .order("position", { ascending: true, nullsFirst: false })
           .returns<Competency[]>();
         if (compsErr) throw compsErr;
         if (cancelled) return;
 
-        // sort: difficulty then name
-        const sorted = (comps ?? []).slice().sort((a, b) => {
-          const da = DIFF_ORDER[(a.difficulty ?? "").toLowerCase()] ?? 99;
-          const db = DIFF_ORDER[(b.difficulty ?? "").toLowerCase()] ?? 99;
-          if (da !== db) return da - db;
-          const an = (a.name ?? "").toLowerCase();
-          const bn = (b.name ?? "").toLowerCase();
-          return an.localeCompare(bn);
-        });
+        const sorted = comps ?? [];
         setAllComps(sorted);
         const compTagLookup = new Map<string, string[]>();
         sorted.forEach((c) => {
