@@ -365,7 +365,7 @@ export default function ReviewQueueQuestions() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search question or competency…"
-            className="w-full pl-9 pr-3 py-2 rounded-full border border-[var(--border)] bg-[var(--field)] text-sm outline-none focus:border-[color:var(--accent)] transition-colors"
+            className="w-full pl-9 pr-3 py-2 rounded-full border border-[var(--border)] bg-[var(--field)] text-sm appearance-none outline-none focus:outline-none focus:ring-0 focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_18%,transparent)] transition-all"
           />
         </div>
         {query && (

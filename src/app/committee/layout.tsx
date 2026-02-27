@@ -192,7 +192,7 @@ export default function CommitteeLayout({
             <button
               type="button"
               onClick={() => setCollapsed((v) => !v)}
-              className={`h-9 w-9 rounded-lg grid place-items-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--field)] transition-all duration-300 ease-out ${
+              className={`h-9 w-9 rounded-full grid place-items-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--field)] transition-all duration-300 ease-out ${
                 collapsed
                   ? "absolute inset-0 m-auto opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:scale-100 group-focus-within:pointer-events-auto"
                   : "absolute right-0 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
@@ -326,7 +326,7 @@ export default function CommitteeLayout({
             onClick={() => setMenuOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className={`w-full text-left flex items-center rounded-xl px-2 py-2 hover:bg-[var(--field)] transition ${
+            className={`w-full text-left flex items-center rounded-full px-2 py-2 hover:bg-[var(--field)] transition ${
               collapsed ? "justify-center gap-0" : "gap-3"
             }`}
           >

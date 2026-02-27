@@ -402,7 +402,7 @@ export default function CommitteeMembers() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="name@hospital.org"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none focus:border-[color:var(--accent)]"
+                  className="w-full rounded-full border border-[var(--border)] bg-[var(--field)] px-4 py-2.5 text-sm appearance-none outline-none focus:outline-none focus:ring-0 focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_18%,transparent)] transition-all"
                 />
 
                 {inviteErr && (
