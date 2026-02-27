@@ -107,7 +107,6 @@ body {
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent);
-  border-radius: 8px;
 }
 
 /* ---------------------------------------------------
