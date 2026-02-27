@@ -253,7 +253,20 @@ export default function SignUpPage() {
     try {
       const sp = new URLSearchParams(window.location.search);
       const r = sp.get("redirect");
+      const roleParam = sp.get("role");
+      const emailParam = sp.get("email");
       if (r && typeof r === "string") setRedirect(r);
+      if (
+        (roleParam === "trainee" ||
+          roleParam === "instructor" ||
+          roleParam === "committee") &&
+        typeof roleParam === "string"
+      ) {
+        setRole(roleParam);
+      }
+      if (emailParam && typeof emailParam === "string") {
+        setEmail(emailParam);
+      }
     } catch {
       // no-op
     }

@@ -11,7 +11,12 @@ import {
   BookOpen,
   HelpCircle,
   Vote,
+  MailPlus,
+  Layers,
+  Sparkles,
   Hospital,
+  Plus,
+  X,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -71,6 +76,14 @@ export default function CommitteeMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [isChairViewer, setIsChairViewer] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteMode, setInviteMode] = useState<"external" | "module">(
+    "external",
+  );
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+  const [inviteErr, setInviteErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +96,7 @@ export default function CommitteeMembers() {
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, first_name, last_name, email, hospital, university, country_name, country_code, avatar_path, committee_role"
+            "id, full_name, first_name, last_name, email, hospital, university, country_name, country_code, avatar_path, committee_role",
           )
           .eq("role", "committee");
         if (pErr) throw pErr;
@@ -126,19 +139,19 @@ export default function CommitteeMembers() {
         (compStage.data ?? []).forEach(
           (r: { suggested_by: string }) =>
             (compCounts[r.suggested_by] =
-              (compCounts[r.suggested_by] ?? 0) + 1)
+              (compCounts[r.suggested_by] ?? 0) + 1),
         );
         (qStage.data ?? []).forEach(
           (r: { suggested_by: string }) =>
-            (qCounts[r.suggested_by] = (qCounts[r.suggested_by] ?? 0) + 1)
+            (qCounts[r.suggested_by] = (qCounts[r.suggested_by] ?? 0) + 1),
         );
         (compVotes.data ?? []).forEach(
           (r: { voter_id: string }) =>
-            (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1)
+            (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1),
         );
         (qVotes.data ?? []).forEach(
           (r: { voter_id: string }) =>
-            (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1)
+            (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1),
         );
 
         const enriched: Member[] = memberList.map((m) => ({
@@ -175,27 +188,99 @@ export default function CommitteeMembers() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (!uid || cancelled) return;
+
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("role, committee_role")
+        .eq("id", uid)
+        .maybeSingle<{ role: string | null; committee_role: string | null }>();
+
+      if (!cancelled) {
+        setIsChairViewer(
+          me?.role === "committee" && me?.committee_role === "chief_editor",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function resetInviteModal() {
+    setInviteMode("external");
+    setInviteEmail("");
+    setInviteMsg(null);
+    setInviteErr(null);
+  }
+
+  function openInviteModal() {
+    resetInviteModal();
+    setInviteOpen(true);
+  }
+
+  function submitExternalInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteErr(null);
+    setInviteMsg(null);
+
+    const email = inviteEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setInviteErr("Please enter a valid email address.");
+      return;
+    }
+
+    const signupUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/signup?role=committee&email=${encodeURIComponent(
+            email,
+          )}`
+        : "/signup";
+
+    setInviteMsg(
+      `Invitation draft prepared for ${email}. Backend email sending is not connected yet. Planned sign-up link: ${signupUrl}`,
+    );
+  }
+
   const chair = members.find((m) => m.committee_role === "chief_editor");
   const regularMembers = members.filter(
-    (m) => m.committee_role !== "chief_editor"
+    (m) => m.committee_role !== "chief_editor",
   );
 
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1
-          className="text-3xl font-bold tracking-tight text-[var(--foreground)]"
-          style={{ fontFamily: "var(--font-heading, sans-serif)" }}
-        >
-          Committee Members
-        </h1>
-        <div className="accent-underline mt-3" />
-        <p className="mt-3 text-sm text-[var(--muted)]">
-          {loading
-            ? "Loading…"
-            : `${members.length} member${members.length !== 1 ? "s" : ""} in the competency committee`}
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1
+            className="text-3xl font-bold tracking-tight text-[var(--foreground)]"
+            style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+          >
+            Committee Members
+          </h1>
+          <div className="accent-underline mt-3" />
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            {loading
+              ? "Loading…"
+              : `${members.length} member${members.length !== 1 ? "s" : ""} in the competency committee`}
+          </p>
+        </div>
+
+        {isChairViewer && (
+          <button
+            onClick={openInviteModal}
+            className="mt-1 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
+            style={{ background: "var(--accent)" }}
+          >
+            <Plus size={15} />
+            Invite members
+          </button>
+        )}
       </div>
 
       {err && (
@@ -235,6 +320,121 @@ export default function CommitteeMembers() {
       {!loading && members.length === 0 && (
         <div className="text-center text-[var(--muted)] py-16 text-sm">
           No committee members found.
+        </div>
+      )}
+
+      {inviteOpen && isChairViewer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setInviteOpen(false)}
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6"
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-4">
+              <h3 className="text-base font-semibold text-[var(--foreground)]">
+                Invite Committee Members
+              </h3>
+              <button
+                onClick={() => setInviteOpen(false)}
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-[var(--muted)]">
+              Choose how you want to invite a new committee member.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setInviteMode("external")}
+                className={`rounded-2xl border p-4 text-left transition-all ${
+                  inviteMode === "external"
+                    ? "border-[color:var(--accent)] bg-[color:var(--accent)]/10"
+                    : "border-[var(--border)] bg-[var(--field)] hover:border-[color:var(--accent)]/50"
+                }`}
+              >
+                <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--accent)]">
+                  <MailPlus size={16} />
+                </div>
+                <div className="text-sm font-semibold text-[var(--foreground)]">
+                  Invite external member
+                </div>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Send an invitation to a committee member by email.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="relative rounded-2xl border border-[var(--border)] bg-[var(--field)] p-4 text-left opacity-85 cursor-not-allowed"
+              >
+                <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                  <Sparkles size={10} />
+                  Coming soon
+                </span>
+                <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)]">
+                  <Layers size={16} />
+                </div>
+                <div className="text-sm font-semibold text-[var(--foreground)]">
+                  Invite from another module
+                </div>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Soon you will be able to invite existing committee members
+                  from other True Competency modules in one click!
+                </p>
+              </button>
+            </div>
+
+            {inviteMode === "external" && (
+              <form onSubmit={submitExternalInvite} className="mt-5 space-y-3">
+                <label className="block text-sm font-medium text-[var(--foreground)]">
+                  Committee member email
+                </label>
+                <input
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="name@hospital.org"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none focus:border-[color:var(--accent)]"
+                />
+
+                {inviteErr && (
+                  <div className="rounded-xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-2 text-xs text-[var(--err)]">
+                    {inviteErr}
+                  </div>
+                )}
+                {inviteMsg && (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--muted)]">
+                    {inviteMsg}
+                  </div>
+                )}
+
+                <div className="pt-1 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInviteOpen(false)}
+                    className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-full px-4 py-2 text-sm font-semibold text-white"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    Prepare invite
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
     </div>
