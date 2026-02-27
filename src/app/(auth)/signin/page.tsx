@@ -218,6 +218,7 @@ export default function SignInPage() {
   const [redirect, setRedirect] = useState<string>("/");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [info, setInfo] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ open: boolean; text: string }>({
@@ -229,7 +230,20 @@ export default function SignInPage() {
     try {
       const sp = new URLSearchParams(window.location.search);
       const r = sp.get("redirect");
+      const checkEmail = sp.get("checkEmail");
+      const verified = sp.get("verified");
+      const signupEmail = sp.get("email");
       if (r && typeof r === "string") setRedirect(r);
+      if (signupEmail && typeof signupEmail === "string") {
+        setEmail(signupEmail);
+      }
+      if (checkEmail === "1") {
+        setInfo(
+          "Please check your inbox and confirm your email before signing in.",
+        );
+      } else if (verified === "1") {
+        setInfo("Email confirmed. You can sign in now.");
+      }
     } catch {
       // no-op
     }
@@ -285,6 +299,14 @@ export default function SignInPage() {
         router.replace(redirect || "/");
       }
     } catch (err: unknown) {
+      if (typeof err === "object" && err !== null) {
+        const maybe = err as { message?: string };
+        const msgText = maybe.message?.toLowerCase() ?? "";
+        if (msgText.includes("email not confirmed")) {
+          setMsg("Please confirm your email first, then sign in.");
+          return;
+        }
+      }
       showError(err);
     } finally {
       setLoading(false);
@@ -341,6 +363,15 @@ export default function SignInPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
+                {info && (
+                  <div
+                    className="p-3 bg-blue-50 border border-blue-200"
+                    style={{ borderRadius: "12px" }}
+                  >
+                    <p className="text-sm text-blue-700">{info}</p>
+                  </div>
+                )}
+
                 <Field
                   label="Email Address"
                   type="email"

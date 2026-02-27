@@ -299,83 +299,61 @@ export default function SignUpPage() {
 
     setLoading(true);
     try {
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/signin?verified=1`
+          : undefined;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo,
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             country_code: countryCode.toUpperCase(),
+            role,
+            committee_role: role === "committee" ? "editor" : null,
+            university: role === "trainee" ? university.trim() || null : null,
+            hospital:
+              role === "instructor" || role === "committee"
+                ? hospital.trim() || null
+                : null,
           },
         },
       });
       if (error) throw error;
 
       if (data.user) {
-        const id = data.user.id;
-        const fullName = `${firstName.trim()} ${lastName.trim()}`.trim() || null;
-        const insertPayload = {
-          id,
-          email,
-          role,
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          full_name: fullName,
-          country_code: countryCode.toUpperCase(),
-          university: role === "trainee" ? university.trim() || null : null,
-          hospital:
-            role === "instructor" || role === "committee"
-              ? hospital.trim() || null
-              : null,
-        };
-
-        const { error: insertErr } = await supabase
-          .from("profiles")
-          .insert(insertPayload);
-
-        if (insertErr) {
-          await ensureProfile(supabase);
-
-          const { data: profRow, error: selErr } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", id)
-            .maybeSingle();
-          if (selErr) throw selErr;
-
-          const updatePayload: Record<string, string | null | Role> = {
-            email,
-            first_name: firstName.trim() || null,
-            last_name: lastName.trim() || null,
-            full_name: fullName,
-            country_code: countryCode.toUpperCase(),
-            university: role === "trainee" ? university.trim() || null : null,
-            hospital:
-              role === "instructor" || role === "committee"
-                ? hospital.trim() || null
-                : null,
-          };
-
-          if (!profRow || !profRow.role) {
-            (updatePayload as Record<string, unknown>).role = role;
-          }
-
-          const { error: updErr } = await supabase
-            .from("profiles")
-            .update(updatePayload)
-            .eq("id", id);
-
-          if (updErr) throw updErr;
+        // In environments without email verification, session may exist immediately.
+        if (data.session) {
+          await ensureProfile(supabase, role);
+          setToast({
+            open: true,
+            text: "Account created successfully. Redirecting to sign in...",
+          });
+          setTimeout(() => {
+            setToast({ open: false, text: "" });
+            router.replace(
+              `/signin?redirect=${encodeURIComponent(redirect || "/")}`,
+            );
+          }, 1200);
+          return;
         }
 
+        // Email verification path: no session yet, so show clear guidance.
         setToast({
           open: true,
-          text: "Account created successfully. Redirecting to sign in...",
+          text: "Account created. Please confirm your email before signing in.",
         });
         setTimeout(() => {
           setToast({ open: false, text: "" });
-          router.replace(`/signin?redirect=${encodeURIComponent(redirect || "/")}`);
+          router.replace(
+            `/signin?redirect=${encodeURIComponent(
+              redirect || "/",
+            )}&checkEmail=1&email=${encodeURIComponent(email)}`,
+          );
         }, 1200);
       }
     } catch (err: unknown) {
