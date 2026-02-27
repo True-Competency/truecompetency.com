@@ -340,7 +340,7 @@ export default function CommitteeMembers() {
               </h3>
               <button
                 onClick={() => setInviteOpen(false)}
-                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
               </button>
@@ -420,13 +420,13 @@ export default function CommitteeMembers() {
                   <button
                     type="button"
                     onClick={() => setInviteOpen(false)}
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                   >
                     Close
                   </button>
                   <button
                     type="submit"
-                    className="rounded-full px-4 py-2 text-sm font-semibold text-white"
+                    className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
                     style={{ background: "var(--accent)" }}
                   >
                     Prepare invite

@@ -657,7 +657,7 @@ export default function CompetenciesPage() {
                 setQuery("");
                 setTagFilters([]);
               }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
             >
               <X size={12} />
               Clear
@@ -681,7 +681,7 @@ export default function CompetenciesPage() {
                   "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
                   tagFilters.includes(t)
                     ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                    : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
+                    : "border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]",
                 )}
               >
                 #{t}
@@ -807,7 +807,7 @@ export default function CompetenciesPage() {
               </h3>
               <button
                 onClick={() => setReorderOpen(false)}
-                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
               </button>
@@ -926,14 +926,14 @@ export default function CompetenciesPage() {
             <div className="flex justify-end gap-2 mt-4 flex-shrink-0">
               <button
                 onClick={() => setReorderOpen(false)}
-                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 Cancel
               </button>
               <button
                 onClick={saveReorder}
                 disabled={reorderSaving}
-                className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90"
+                className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
                 style={{ background: "var(--accent)" }}
               >
                 {reorderSaving ? "Saving…" : "Save order"}
@@ -961,7 +961,7 @@ export default function CompetenciesPage() {
               </h3>
               <button
                 onClick={() => setProposeOpen(false)}
-                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
               </button>
@@ -1015,7 +1015,7 @@ export default function CompetenciesPage() {
                           "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
                           propTagIds.includes(t.id)
                             ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                            : "border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)]",
+                            : "border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]",
                         )}
                       >
                         #{t.name}
@@ -1039,14 +1039,14 @@ export default function CompetenciesPage() {
               <div className="flex justify-end gap-2 mt-1">
                 <button
                   onClick={() => setProposeOpen(false)}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePropose}
                   disabled={submitting}
-                  className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90"
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
                   style={{ background: "var(--accent)" }}
                 >
                   {submitting ? "Submitting…" : "Submit proposal"}
@@ -1075,7 +1075,7 @@ export default function CompetenciesPage() {
               </h3>
               <button
                 onClick={() => setQModalOpen(false)}
-                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
               </button>
@@ -1202,7 +1202,7 @@ export default function CompetenciesPage() {
                               prev.filter((a) => a.id !== item.id),
                             )
                           }
-                          className="h-7 w-7 grid place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] hover:text-[var(--err)] hover:border-[color:var(--err)]/40 transition-colors"
+                          className="h-7 w-7 grid place-items-center rounded-full border border-[var(--border)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                           aria-label={`Remove ${item.file.name}`}
                           title="Remove file"
                         >
@@ -1271,14 +1271,14 @@ export default function CompetenciesPage() {
               <div className="flex justify-end gap-2 mt-1">
                 <button
                   onClick={() => setQModalOpen(false)}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleProposeQuestion}
                   disabled={submittingQ}
-                  className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90"
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
                   style={{ background: "var(--accent)" }}
                 >
                   {submittingQ ? "Submitting…" : "Submit question"}

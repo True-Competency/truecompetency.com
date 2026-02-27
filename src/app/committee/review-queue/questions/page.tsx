@@ -371,7 +371,7 @@ export default function ReviewQueueQuestions() {
         {query && (
           <button
             onClick={() => setQuery("")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
           >
             <X size={12} />
             Clear

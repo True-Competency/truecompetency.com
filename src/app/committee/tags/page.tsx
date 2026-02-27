@@ -243,7 +243,7 @@ export default function CommitteeTagsPage() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
           style={{ background: "var(--accent)" }}
         >
           <Plus size={14} />
@@ -307,7 +307,7 @@ export default function CommitteeTagsPage() {
                           type="button"
                           disabled={rowBusyId === t.id}
                           onClick={() => void renameTag(t.id)}
-                          className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ok)] disabled:opacity-50"
+                          className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
                           title="Save name"
                         >
                           <Check size={14} />
@@ -319,7 +319,7 @@ export default function CommitteeTagsPage() {
                             setEditingId(null);
                             setEditingName("");
                           }}
-                          className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                          className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
                           title="Cancel"
                         >
                           <X size={14} />
@@ -333,7 +333,7 @@ export default function CommitteeTagsPage() {
                           setEditingId(t.id);
                           setEditingName(t.name);
                         }}
-                        className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-50"
+                        className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
                         title="Rename tag"
                       >
                         <Pencil size={14} />
@@ -343,7 +343,7 @@ export default function CommitteeTagsPage() {
                       type="button"
                       disabled={rowBusyId === t.id}
                       onClick={() => void deleteTag(t.id, t.name)}
-                      className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--err)] disabled:opacity-50"
+                      className="h-8 w-8 grid place-items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
                       title="Delete tag"
                     >
                       <Trash2 size={14} />
