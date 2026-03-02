@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { LayoutDashboard, BookOpen, UserCircle2 } from "lucide-react";
 
 type Profile = {
   id: string;
+  email: string | null;
   full_name: string | null;
   first_name: string | null;
   last_name: string | null;
+  avatar_path: string | null;
 };
 
 export default function TraineeLayout({
@@ -19,7 +21,11 @@ export default function TraineeLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +34,7 @@ export default function TraineeLayout({
       if (!u.user?.id || cancelled) return;
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, first_name, last_name")
+        .select("id, email, full_name, first_name, last_name, avatar_path")
         .eq("id", u.user.id)
         .maybeSingle();
       if (data && !cancelled) setProfile(data as Profile);
@@ -37,6 +43,25 @@ export default function TraineeLayout({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!menuOpen) return;
+      const target = e.target as Node;
+      if (!menuRef.current?.contains(target) && !btnRef.current?.contains(target)) {
+        setMenuOpen(false);
+      }
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [menuOpen]);
 
   const navBase =
     "flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium transition-all";
@@ -57,6 +82,27 @@ export default function TraineeLayout({
       [p.first_name, p.last_name].filter(Boolean).join(" ") ||
       "Trainee"
     );
+  }
+
+  function getInitials(p: Profile | null) {
+    if (!p) return "T";
+    const fn = p.first_name?.[0] ?? "";
+    const ln = p.last_name?.[0] ?? "";
+    return (fn + ln || p.full_name?.[0] || p.email?.[0] || "T").toUpperCase();
+  }
+
+  function getAvatarUrl(p: Profile | null) {
+    if (!p?.avatar_path) return "";
+    return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
+      .data.publicUrl;
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setMenuOpen(false);
+    const redir = encodeURIComponent(pathname || "/");
+    router.replace(`/signin?redirect=${redir}`);
+    router.refresh();
   }
 
   return (
@@ -103,11 +149,68 @@ export default function TraineeLayout({
           </Link>
         </nav>
 
-        <div className="px-4 py-4 border-t border-[var(--border)]">
-          <div className="text-sm font-medium text-[var(--foreground)] truncate">
-            {displayName(profile)}
-          </div>
-          <div className="text-xs text-[var(--muted)] mt-0.5">Trainee</div>
+        <div className="px-3 py-4 border-t border-[var(--border)] relative">
+          <button
+            ref={btnRef}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="w-full text-left flex items-center gap-3 rounded-full px-2 py-2 hover:bg-[var(--field)] transition"
+          >
+            <div className="h-9 w-9 overflow-hidden rounded-full grid place-items-center text-white text-xs font-bold flex-shrink-0 bg-[var(--accent)]">
+              {profile?.avatar_path ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={getAvatarUrl(profile)}
+                  alt={displayName(profile)}
+                  className="h-full w-full object-cover object-center"
+                />
+              ) : (
+                getInitials(profile)
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-[var(--foreground)] truncate">
+                {displayName(profile)}
+              </div>
+              <div className="text-xs text-[var(--muted)] mt-0.5">Trainee</div>
+            </div>
+          </button>
+
+          {menuOpen && (
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Profile menu"
+              className="absolute left-3 right-3 bottom-[82px] rounded-xl border border-[var(--border)] bg-[color:var(--surface)] shadow-[0_12px_48px_color-mix(in_oklab,var(--accent)_16%,transparent)] overflow-hidden z-20"
+            >
+              <div className="py-1">
+                <Link
+                  href="/account"
+                  role="menuitem"
+                  className="block px-3 py-2 text-sm transition-colors hover:bg-[var(--accent)] hover:text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Account
+                </Link>
+                <Link
+                  href="/settings"
+                  role="menuitem"
+                  className="block px-3 py-2 text-sm transition-colors hover:bg-[var(--accent)] hover:text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Settings
+                </Link>
+                <button
+                  role="menuitem"
+                  onClick={handleSignOut}
+                  className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-[var(--accent)] hover:text-white"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
