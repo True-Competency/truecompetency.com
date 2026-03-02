@@ -675,7 +675,7 @@ export default function CompetenciesPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="px-8 py-8 max-w-6xl mx-auto">
+    <div className="h-screen overflow-hidden px-8 py-8 max-w-6xl mx-auto flex flex-col">
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
@@ -728,7 +728,7 @@ export default function CompetenciesPage() {
       )}
 
       {/* Filters */}
-      <div className="mb-5">
+      <div className="mb-5 flex-shrink-0">
         <div className="flex items-center gap-2 mb-3">
           <div className="relative flex-1">
             <Search
@@ -783,11 +783,12 @@ export default function CompetenciesPage() {
       </div>
 
       {/* Table */}
-      {loading ? (
-        <div className="text-sm text-[var(--muted)]">Loading…</div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-          <table className="min-w-full text-sm">
+      <div className="min-h-0 flex-1">
+        {loading ? (
+          <div className="text-sm text-[var(--muted)]">Loading…</div>
+        ) : (
+          <div className="h-full overflow-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--field)]/40">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-12">
@@ -892,9 +893,10 @@ export default function CompetenciesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      )}
+            </table>
+          </div>
+        )}
+      </div>
 
       {questionPreviewComp && (
         <div
