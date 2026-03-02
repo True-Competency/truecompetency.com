@@ -219,7 +219,7 @@ export default function AccountClient({ email }: Props) {
             ? university.trim() || null
             : profile.university,
         hospital:
-          profile.role === "instructor"
+          profile.role === "instructor" || profile.role === "committee"
             ? hospital.trim() || null
             : profile.hospital,
         avatar_path: profile.avatar_path ?? null,
