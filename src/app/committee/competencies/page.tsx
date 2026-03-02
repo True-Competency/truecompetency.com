@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  ArrowRight,
   GripVertical,
   Paperclip,
   Plus,
@@ -27,6 +28,14 @@ type QuestionOption = {
   label: string;
   body: string;
   is_correct: boolean;
+};
+
+type CompetencyQuestion = {
+  id: string;
+  competency_id: string;
+  body: string;
+  created_at: string;
+  options: QuestionOption[];
 };
 
 type QuestionAttachment = {
@@ -80,6 +89,9 @@ function diffColor(d: string): string {
 export default function CompetenciesPage() {
   const [rows, setRows] = useState<Competency[]>([]);
   const [tagsCatalog, setTagsCatalog] = useState<TagRow[]>([]);
+  const [questionsByComp, setQuestionsByComp] = useState<
+    Record<string, CompetencyQuestion[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -111,6 +123,9 @@ export default function CompetenciesPage() {
   const [qDragActive, setQDragActive] = useState(false);
   const [qUploadError, setQUploadError] = useState<string | null>(null);
   const [submittingQ, setSubmittingQ] = useState(false);
+  const [questionPreviewComp, setQuestionPreviewComp] = useState<Competency | null>(
+    null,
+  );
   const [isChair, setIsChair] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [reorderSaving, setReorderSaving] = useState(false);
@@ -133,16 +148,25 @@ export default function CompetenciesPage() {
       try {
         setLoading(true);
         setErr(null);
-        const [{ data, error }, { data: tagsData, error: tagsErr }] =
+        const [
+          { data, error },
+          { data: tagsData, error: tagsErr },
+          { data: questionRows, error: questionsErr },
+        ] =
           await Promise.all([
             supabase
               .from("competencies")
               .select("id, name, difficulty, tags, position, created_at")
               .order("position", { ascending: true, nullsFirst: false }),
             supabase.from("tags").select("id, name").order("name", { ascending: true }),
+            supabase
+              .from("competency_questions")
+              .select("id, competency_id, body, created_at")
+              .order("created_at", { ascending: true }),
           ]);
         if (error) throw error;
         if (tagsErr) throw tagsErr;
+        if (questionsErr) throw questionsErr;
 
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
@@ -153,9 +177,58 @@ export default function CompetenciesPage() {
             .map((id) => tagNameById.get(id))
             .filter((v): v is string => Boolean(v)),
         }));
+
+        const liveQuestions = (questionRows ?? []) as Array<{
+          id: string;
+          competency_id: string;
+          body: string;
+          created_at: string;
+        }>;
+        const questionIds = liveQuestions.map((q) => q.id);
+        const questionOptionsMap: Record<string, QuestionOption[]> = {};
+
+        if (questionIds.length > 0) {
+          const { data: optionRows, error: optionsErr } = await supabase
+            .from("question_options")
+            .select("question_id, body, is_correct, sort_order")
+            .in("question_id", questionIds)
+            .order("sort_order", { ascending: true });
+          if (optionsErr) throw optionsErr;
+
+          (optionRows ?? []).forEach(
+            (option: {
+              question_id: string;
+              body: string;
+              is_correct: boolean;
+            }) => {
+              if (!questionOptionsMap[option.question_id]) {
+                questionOptionsMap[option.question_id] = [];
+              }
+              const arr = questionOptionsMap[option.question_id];
+              arr.push({
+                label: String.fromCharCode("A".charCodeAt(0) + arr.length),
+                body: option.body,
+                is_correct: option.is_correct,
+              });
+            },
+          );
+        }
+
+        const questionsMap: Record<string, CompetencyQuestion[]> = {};
+        liveQuestions.forEach((question) => {
+          if (!questionsMap[question.competency_id]) {
+            questionsMap[question.competency_id] = [];
+          }
+          questionsMap[question.competency_id].push({
+            ...question,
+            options: questionOptionsMap[question.id] ?? [],
+          });
+        });
+
         if (!cancelled) {
           setRows(resolved);
           setTagsCatalog((tagsData ?? []) as TagRow[]);
+          setQuestionsByComp(questionsMap);
         }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
@@ -575,6 +648,24 @@ export default function CompetenciesPage() {
             ? "Question added directly."
             : "Question proposal submitted.",
       );
+
+      if (isChair) {
+        const createdQuestion: CompetencyQuestion = {
+          id: newId,
+          competency_id: compId,
+          body: prompt,
+          created_at: new Date().toISOString(),
+          options: cleaned.map((o, idx) => ({
+            label: String.fromCharCode("A".charCodeAt(0) + idx),
+            body: o.body,
+            is_correct: idx === safeCorrectIdx,
+          })),
+        };
+        setQuestionsByComp((prev) => ({
+          ...prev,
+          [compId]: [...(prev[compId] ?? []), createdQuestion],
+        }));
+      }
     } catch (e) {
       setErr(getErrorMessage(e));
     } finally {
@@ -714,8 +805,8 @@ export default function CompetenciesPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-32">
                   Added
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-44">
-                  Actions
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-52">
+                  Questions
                 </th>
               </tr>
             </thead>
@@ -772,20 +863,121 @@ export default function CompetenciesPage() {
                     {new Date(c.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 align-middle">
-                    <button
-                      onClick={() => {
-                        resetQForm(c.id);
-                        setQModalOpen(true);
-                      }}
-                      className="rounded-full border border-[var(--border)] bg-[var(--field)] px-3 py-1.5 text-xs text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-all"
-                    >
-                      Propose question
-                    </button>
+                    {(() => {
+                      const questionCount = questionsByComp[c.id]?.length ?? 0;
+                      if (questionCount === 0) {
+                        return (
+                          <span className="inline-flex items-center rounded-full border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--err)]">
+                            No question
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <button
+                          onClick={() => setQuestionPreviewComp(c)}
+                          className="group inline-flex items-center gap-1.5 rounded-full border border-[color:var(--ok)]/35 bg-[color:var(--ok)]/12 px-3 py-1.5 text-xs font-semibold text-[var(--ok)] transition-all hover:scale-[1.15] hover:bg-[var(--ok)] hover:text-white"
+                        >
+                          <span>
+                            {questionCount} question{questionCount !== 1 ? "s" : ""}
+                          </span>
+                          <ArrowRight
+                            size={12}
+                            className="transition-all group-hover:translate-x-0.5"
+                          />
+                        </button>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {questionPreviewComp && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setQuestionPreviewComp(null)}
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6"
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-4">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--foreground)]">
+                  Competency Questions
+                </h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  {questionPreviewComp.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setQuestionPreviewComp(null)}
+                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {(questionsByComp[questionPreviewComp.id] ?? []).map((question, index) => (
+                <div
+                  key={question.id}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[10px] font-bold text-[var(--muted)]">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[var(--foreground)] leading-snug">
+                        {question.body}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[var(--muted)]">
+                        Added {new Date(question.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {question.options.map((option) => (
+                      <div
+                        key={`${question.id}_${option.label}`}
+                        className={cls(
+                          "flex items-start gap-2.5 rounded-xl border px-3 py-2 text-xs",
+                          option.is_correct
+                            ? "border-[color:var(--ok)]/50 bg-[color:var(--ok)]/10 text-[var(--foreground)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]",
+                        )}
+                      >
+                        <span
+                          className={cls(
+                            "font-bold flex-shrink-0",
+                            option.is_correct
+                              ? "text-[var(--ok)]"
+                              : "text-[var(--muted)]",
+                          )}
+                        >
+                          {option.label}
+                        </span>
+                        <span className="leading-snug">{option.body}</span>
+                        {option.is_correct && (
+                          <span className="ml-auto flex-shrink-0 text-[var(--ok)] font-semibold">
+                            Correct
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
