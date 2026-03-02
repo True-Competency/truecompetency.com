@@ -331,7 +331,7 @@ export default function CommitteeLayout({
             }`}
           >
             <div
-              className="w-9 h-9 rounded-full grid place-items-center text-white text-xs font-bold flex-shrink-0"
+              className="h-9 w-9 overflow-hidden rounded-full grid place-items-center text-white text-xs font-bold flex-shrink-0"
               style={{ background: "var(--accent)" }}
             >
               {profile?.avatar_path ? (
@@ -339,7 +339,7 @@ export default function CommitteeLayout({
                 <img
                   src={getAvatarUrl(profile)}
                   alt={getDisplayName(profile)}
-                  className="h-full w-full object-cover rounded-full"
+                  className="h-full w-full object-cover object-center"
                 />
               ) : (
                 getInitials(profile)

@@ -482,7 +482,7 @@ function MemberCard({
 
       {/* Avatar */}
       <div
-        className={`rounded-full grid place-items-center text-white font-bold flex-shrink-0 shadow-lg ${
+        className={`overflow-hidden rounded-full grid place-items-center text-white font-bold flex-shrink-0 shadow-lg ${
           featured ? "w-20 h-20 text-2xl" : "w-14 h-14 text-lg"
         }`}
         style={{ background: color }}
@@ -492,7 +492,7 @@ function MemberCard({
           <img
             src={avatarUrl}
             alt={getDisplayName(m)}
-            className="h-full w-full object-cover rounded-full"
+            className="h-full w-full object-cover object-center"
           />
         ) : (
           getInitials(m)

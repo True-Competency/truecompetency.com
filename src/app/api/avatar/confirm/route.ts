@@ -15,7 +15,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing storagePath' }, { status: 400 })
   }
 
-  // Users can only update their own avatar — .eq('id', user.id) enforces this
+  const { data: existingProfile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('avatar_path')
+    .eq('id', user.id)
+    .maybeSingle<{ avatar_path: string | null }>()
+
+  if (profileErr) {
+    console.error('[avatar/confirm] Profile load error:', profileErr)
+    return NextResponse.json({ error: 'Failed to load current avatar' }, { status: 500 })
+  }
+
+  const previousAvatarPath = existingProfile?.avatar_path ?? null
+
   const { error } = await supabase
     .from('profiles')
     .update({ avatar_path: storagePath })
@@ -24,6 +36,16 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('[avatar/confirm] DB update error:', error)
     return NextResponse.json({ error: 'Failed to update avatar' }, { status: 500 })
+  }
+
+  if (previousAvatarPath && previousAvatarPath !== storagePath) {
+    const { error: removeErr } = await supabase.storage
+      .from('profile-pictures')
+      .remove([previousAvatarPath])
+
+    if (removeErr) {
+      console.warn('[avatar/confirm] Failed to remove previous avatar:', removeErr)
+    }
   }
 
   return NextResponse.json({ success: true })

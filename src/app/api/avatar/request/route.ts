@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServer()
@@ -22,9 +27,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Max avatar size is 5MB' }, { status: 400 })
   }
 
-  // Path scoped to user's own folder — bucket RLS also enforces this as second layer
-  const ext = mimeType.split('/')[1]
-  const storagePath = `${user.id}/avatar.${ext}`
+  // Unique path per upload prevents signed-upload collisions on replacement.
+  const ext = MIME_EXT[mimeType] ?? mimeType.split('/')[1] ?? 'bin'
+  const storagePath = `${user.id}/avatar-${Date.now()}-${crypto.randomUUID()}.${ext}`
 
   const { data, error } = await supabase.storage
     .from('profile-pictures')

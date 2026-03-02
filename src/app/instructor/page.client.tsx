@@ -583,7 +583,7 @@ export default function InstructorClient() {
               {/* left: avatar + text */}
               <div className="flex items-center gap-4">
                 <div
-                  className="h-16 w-16 md:h-20 md:w-20 rounded-full flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-md ring-4 ring-[var(--surface)]"
+                  className="h-16 w-16 md:h-20 md:w-20 overflow-hidden rounded-full flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-md ring-4 ring-[var(--surface)]"
                   style={{ background: "var(--accent)" }}
                 >
                   {meAvatarUrl ? (
@@ -591,7 +591,7 @@ export default function InstructorClient() {
                     <img
                       src={meAvatarUrl}
                       alt={displayDr}
-                      className="h-full w-full object-cover rounded-full"
+                      className="h-full w-full object-cover object-center"
                     />
                   ) : (
                     initials

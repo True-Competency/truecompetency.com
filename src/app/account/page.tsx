@@ -467,7 +467,7 @@ export default function AccountClient({ email }: Props) {
                     <img
                       src={avatarUrl}
                       alt="Profile picture"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                     />
                   ) : (
                     <span className="text-lg font-semibold text-[var(--muted)]">
