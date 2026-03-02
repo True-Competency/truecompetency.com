@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import ReactCountryFlag from "react-country-flag";
 import { supabase } from "@/lib/supabaseClient";
 import {
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   Tags,
   ChevronRight,
   Crown,
+  Hospital,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -24,6 +26,9 @@ type Profile = {
   first_name: string | null;
   last_name: string | null;
   committee_role: string | null;
+  hospital: string | null;
+  country_name: string | null;
+  country_code: string | null;
   avatar_path: string | null;
 };
 
@@ -47,7 +52,9 @@ export default function CommitteeLayout({
       if (!u.user?.id || cancelled) return;
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, first_name, last_name, committee_role, avatar_path")
+        .select(
+          "id, full_name, first_name, last_name, committee_role, hospital, country_name, country_code, avatar_path",
+        )
         .eq("id", u.user.id)
         .maybeSingle();
       if (data && !cancelled) setProfile(data as Profile);
@@ -120,6 +127,11 @@ export default function CommitteeLayout({
     return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
       .data.publicUrl;
   }
+
+  const countryCode =
+    profile?.country_code && /^[A-Za-z]{2}$/.test(profile.country_code)
+      ? profile.country_code.toUpperCase()
+      : null;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -347,20 +359,43 @@ export default function CommitteeLayout({
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-[var(--foreground)] truncate">
-                  {profile ? `Dr. ${getDisplayName(profile)}` : "Loading..."}
+                <div className="flex items-center gap-1.5">
+                  <div className="text-sm font-medium text-[var(--foreground)] truncate flex-1">
+                    {profile ? `Dr. ${getDisplayName(profile)}` : "Loading..."}
+                  </div>
+                  {profile?.committee_role === "chief_editor" && (
+                    <Crown
+                      size={11}
+                      className="flex-shrink-0"
+                      style={{ color: "var(--warn)" }}
+                    />
+                  )}
                 </div>
-                <div className="text-xs text-[var(--muted)] flex items-center gap-1 mt-0.5">
-                  {profile?.committee_role === "chief_editor" ? (
-                    <>
-                      <Crown
-                        size={10}
-                        style={{ color: "var(--warn)", flexShrink: 0 }}
-                      />
-                      <span>Committee Chair</span>
-                    </>
-                  ) : (
-                    "Committee Member"
+                <div className="mt-0.5 space-y-0.5">
+                  {profile?.hospital && (
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <Hospital size={11} className="flex-shrink-0" />
+                      <span className="truncate">{profile.hospital}</span>
+                    </div>
+                  )}
+                  {profile?.country_name && (
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                      {countryCode ? (
+                        <ReactCountryFlag
+                          countryCode={countryCode}
+                          svg
+                          style={{
+                            width: "0.95em",
+                            height: "0.95em",
+                            borderRadius: 2,
+                            flexShrink: 0,
+                          }}
+                          title={profile.country_name}
+                          aria-label={profile.country_name}
+                        />
+                      ) : null}
+                      <span className="truncate">{profile.country_name}</span>
+                    </div>
                   )}
                 </div>
               </div>
