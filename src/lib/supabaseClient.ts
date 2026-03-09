@@ -16,18 +16,21 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const NEXT_PUBLIC_ENV = process.env.NEXT_PUBLIC_ENV ?? "";
 
 const PROD_SUPABASE_REF = "stkwpilbzvzmgrxbsvcx"; // production project ref (update if prod project changes)
-const ALLOW_PROD_BYPASS = process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE === "0";
+const ALLOW_PROD_BYPASS = process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE === "1";
 
 if (!ALLOW_PROD_BYPASS) {
   const isNonProdRuntime = process.env.NODE_ENV !== "production";
-  const isExplicitlyNonProdEnv = NEXT_PUBLIC_ENV !== "" && NEXT_PUBLIC_ENV !== "production";
-  const looksLikeProdSupabase = SUPABASE_URL.includes(`${PROD_SUPABASE_REF}.supabase.co`);
+  const isExplicitlyNonProdEnv =
+    NEXT_PUBLIC_ENV !== "" && NEXT_PUBLIC_ENV !== "production";
+  const looksLikeProdSupabase = SUPABASE_URL.includes(
+    `${PROD_SUPABASE_REF}.supabase.co`,
+  );
 
   if ((isNonProdRuntime || isExplicitlyNonProdEnv) && looksLikeProdSupabase) {
     throw new Error(
       "SAFETY STOP: This build is pointing at PRODUCTION Supabase.\n" +
         "Fix your environment variables to use STAGING Supabase.\n" +
-        "If you must bypass intentionally, set NEXT_PUBLIC_ALLOW_PROD_SUPABASE=1 (temporary)."
+        "If you must bypass intentionally, set NEXT_PUBLIC_ALLOW_PROD_SUPABASE=1 (temporary).",
     );
   }
 }
