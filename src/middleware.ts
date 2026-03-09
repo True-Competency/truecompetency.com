@@ -25,7 +25,7 @@ const ROLE_HOME: Record<AppRole, string> = {
   admin: "/instructor", // admins land here by default
 };
 
-export async function proxy(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow Next internals & public routes
@@ -54,7 +54,7 @@ export async function proxy(req: NextRequest) {
           }
         },
       },
-    }
+    },
   );
 
   const {
@@ -120,5 +120,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+  ],
 };
