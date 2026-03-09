@@ -288,16 +288,7 @@ export default function TraineeCompetencyPage() {
     <main className="bg-[var(--background)] text-[var(--foreground)] transition-colors">
       {/* Page hero */}
       <section className="mx-auto max-w-5xl px-6 pt-8 pb-5">
-        <button
-          onClick={() => router.push("/trainee")}
-          className="inline-flex items-center gap-2 text-sm rounded-lg border px-3 py-1.5 hover:bg-[color:var(--surface)]/60 transition"
-          style={{ borderColor: BORDER, color: ACCENT }}
-        >
-          <span aria-hidden>←</span>
-          Back to dashboard
-        </button>
-
-        <h1 className="mt-4 text-2xl md:text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
           {competency ? competency.name : "Loading…"}
         </h1>
         <div className="accent-underline mt-3" />

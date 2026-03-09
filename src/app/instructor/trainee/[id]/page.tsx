@@ -306,12 +306,6 @@ export default function InstructorTraineeDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push("/instructor")}
-              className="rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm hover:shadow-sm"
-            >
-              ← Back
-            </button>
-            <button
               type="button"
               onClick={approveAll}
               disabled={
