@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
   // Scoped storage path — parent ID as folder prevents cross-contamination
   const parentId = stageId ?? questionId;
-  const fileExt = fileName.split(".").pop();
+  const fileExt = MIME_TO_EXT[mimeType];
   const fileId = crypto.randomUUID();
   const storagePath = `questions/${parentId}/${fileId}.${fileExt}`;
 
