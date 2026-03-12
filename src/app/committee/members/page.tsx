@@ -84,6 +84,7 @@ export default function CommitteeMembers() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [inviteErr, setInviteErr] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,7 +225,7 @@ export default function CommitteeMembers() {
     setInviteOpen(true);
   }
 
-  function submitExternalInvite(e: React.FormEvent) {
+  async function submitExternalInvite(e: React.FormEvent) {
     e.preventDefault();
     setInviteErr(null);
     setInviteMsg(null);
@@ -235,16 +236,33 @@ export default function CommitteeMembers() {
       return;
     }
 
-    const signupUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/signup?role=committee&email=${encodeURIComponent(
-            email,
-          )}`
-        : "/signup";
+    setInviting(true);
+    try {
+      const res = await fetch("/api/committee/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
 
-    setInviteMsg(
-      `Invitation draft prepared for ${email}. Backend email sending is not connected yet. Planned sign-up link: ${signupUrl}`,
-    );
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to send invitation.");
+      }
+
+      setInviteMsg(
+        json?.message ||
+          `Invitation sent to ${email}. They can accept it from their email inbox.`,
+      );
+      setInviteEmail("");
+    } catch (error) {
+      setInviteErr(
+        error instanceof Error ? error.message : "Failed to send invitation.",
+      );
+    } finally {
+      setInviting(false);
+    }
   }
 
   const chair = members.find((m) => m.committee_role === "chief_editor");
@@ -402,6 +420,7 @@ export default function CommitteeMembers() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="name@hospital.org"
+                  disabled={inviting}
                   className="w-full rounded-full border border-[var(--border)] bg-[var(--field)] px-4 py-2.5 text-sm appearance-none outline-none focus:outline-none focus:ring-0 focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_18%,transparent)] transition-all"
                 />
 
@@ -420,16 +439,18 @@ export default function CommitteeMembers() {
                   <button
                     type="button"
                     onClick={() => setInviteOpen(false)}
+                    disabled={inviting}
                     className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                   >
                     Close
                   </button>
                   <button
                     type="submit"
+                    disabled={inviting}
                     className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]"
                     style={{ background: "var(--accent)" }}
                   >
-                    Prepare invite
+                    {inviting ? "Sending…" : "Send invite"}
                   </button>
                 </div>
               </form>

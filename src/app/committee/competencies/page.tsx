@@ -112,6 +112,8 @@ export default function CompetenciesPage() {
   // Propose Question modal
   const [qModalOpen, setQModalOpen] = useState(false);
   const [qCompId, setQCompId] = useState("");
+  const [qCompQuery, setQCompQuery] = useState("");
+  const [qCompTagFilters, setQCompTagFilters] = useState<string[]>([]);
   const [qBody, setQBody] = useState("");
   const [qOptions, setQOptions] = useState<QuestionOption[]>([
     { label: "A", body: "", is_correct: true },
@@ -280,6 +282,26 @@ export default function CompetenciesPage() {
     () => tagsCatalog.map((t) => t.name),
     [tagsCatalog],
   );
+  const qCompOptions = useMemo(() => {
+    const needle = qCompQuery.trim().toLowerCase();
+    return rows.filter((r) => {
+      const inSearch =
+        !needle ||
+        r.name.toLowerCase().includes(needle) ||
+        r.difficulty.toLowerCase().includes(needle) ||
+        (r.tags ?? []).some((t) => t.toLowerCase().includes(needle));
+      const tagsOk =
+        qCompTagFilters.length === 0 ||
+        qCompTagFilters.every((t) =>
+          (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase()),
+        );
+      return inSearch && tagsOk;
+    });
+  }, [qCompQuery, qCompTagFilters, rows]);
+  const selectedQComp = useMemo(
+    () => rows.find((r) => r.id === qCompId) ?? null,
+    [qCompId, rows],
+  );
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function showToast(msg: string) {
@@ -302,6 +324,8 @@ export default function CompetenciesPage() {
 
   function resetQForm(preCompId = "") {
     setQCompId(preCompId);
+    setQCompQuery("");
+    setQCompTagFilters([]);
     setQBody("");
     setQOptions([
       { label: "A", body: "", is_correct: true },
@@ -1277,18 +1301,151 @@ export default function CompetenciesPage() {
             <div className="grid gap-4">
               <label className="grid gap-1 text-sm">
                 <span className="text-[var(--muted)]">Competency *</span>
-                <select
-                  value={qCompId}
-                  onChange={(e) => setQCompId(e.target.value)}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none w-full"
-                >
-                  <option value="">Select a competency…</option>
-                  {rows.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.difficulty})
-                    </option>
-                  ))}
-                </select>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--field)] p-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="relative flex-1">
+                      <Search
+                        size={15}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <input
+                        value={qCompQuery}
+                        onChange={(e) => setQCompQuery(e.target.value)}
+                        placeholder="Search name, difficulty, tag…"
+                        className="w-full rounded-full border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
+                      />
+                    </div>
+                    {(qCompQuery || qCompTagFilters.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQCompQuery("");
+                          setQCompTagFilters([]);
+                        }}
+                        className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        <X size={12} />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {tagOptions.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {tagOptions.map((t) => (
+                        <button
+                          key={`q_filter_${t}`}
+                          type="button"
+                          onClick={() =>
+                            setQCompTagFilters((prev) =>
+                              prev.includes(t)
+                                ? prev.filter((x) => x !== t)
+                                : [...prev, t],
+                            )
+                          }
+                          className={cls(
+                            "rounded-full border px-2.5 py-0.5 text-[11px] transition-all",
+                            qCompTagFilters.includes(t)
+                              ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]",
+                          )}
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedQComp && (
+                    <div className="mb-3 rounded-xl border border-[color:var(--accent)]/25 bg-[color:var(--accent)]/8 px-3 py-2 text-xs text-[var(--foreground)]">
+                      Selected: <span className="font-semibold">{selectedQComp.name}</span>{" "}
+                      <span className="text-[var(--muted)]">
+                        ({selectedQComp.difficulty})
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="max-h-64 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+                    {qCompOptions.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-[var(--muted)]">
+                        No competencies match that search.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-[var(--border)]">
+                        {qCompOptions.map((c) => {
+                          const active = c.id === qCompId;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setQCompId(c.id)}
+                              className={cls(
+                                "w-full px-4 py-3 text-left transition-all",
+                                active
+                                  ? "bg-[color:var(--accent)]/10"
+                                  : "hover:bg-[var(--field)]",
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className={cls(
+                                    "flex-shrink-0 overflow-hidden pt-0.5 transition-all",
+                                    active ? "w-5 opacity-100" : "w-0 opacity-0",
+                                  )}
+                                  aria-hidden={!active}
+                                >
+                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-white">
+                                    <svg
+                                      viewBox="0 0 16 16"
+                                      className="h-3.5 w-3.5"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M3.5 8.5 6.5 11.5 12.5 5.5" />
+                                    </svg>
+                                  </div>
+                                </div>
+                                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-medium text-[var(--foreground)]">
+                                      {c.name}
+                                    </div>
+                                    {(c.tags ?? []).length > 0 && (
+                                      <div className="mt-1 flex flex-wrap gap-1.5">
+                                        {(c.tags ?? []).slice(0, 4).map((t) => (
+                                          <span
+                                            key={`${c.id}_${t}`}
+                                            className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                                          >
+                                            #{t}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                      style={{
+                                        background: diffColor(c.difficulty),
+                                        color: "#000",
+                                      }}
+                                    >
+                                      {c.difficulty}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </label>
 
               <label className="grid gap-1 text-sm">
