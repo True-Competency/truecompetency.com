@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const admin = getSupabaseAdmin();
-    const origin = req.nextUrl.origin;
+    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin;
     const redirectTo = `${origin}/welcome?email=${encodeURIComponent(email)}`;
 
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
