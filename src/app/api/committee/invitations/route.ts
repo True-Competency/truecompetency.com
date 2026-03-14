@@ -20,11 +20,14 @@ export async function POST(req: NextRequest) {
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, committee_role, hospital")
+    .select("role, committee_role, hospital, first_name, last_name")
     .eq("id", user.id)
     .maybeSingle<{
       role: string | null;
       committee_role: string | null;
       hospital: string | null;
+      first_name: string | null;
+      last_name: string | null;
     }>();
 
   if (profileError) {
@@ -44,7 +47,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json().catch(() => null)) as { email?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    email?: unknown;
+  } | null;
   const email =
     typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
 
@@ -78,7 +83,7 @@ export async function POST(req: NextRequest) {
   try {
     const admin = getSupabaseAdmin();
     const origin = req.nextUrl.origin;
-    const redirectTo = `${origin}/signin?invited=1&email=${encodeURIComponent(email)}`;
+    const redirectTo = `${origin}/welcome?email=${encodeURIComponent(email)}`;
 
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
       email,
@@ -88,6 +93,8 @@ export async function POST(req: NextRequest) {
           role: "committee",
           committee_role: "editor",
           hospital: profile.hospital ?? null,
+          invited_by:
+            `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
         },
       },
     );
@@ -104,7 +111,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.error("[committee/invitations] inviteUserByEmail error:", inviteError);
+      console.error(
+        "[committee/invitations] inviteUserByEmail error:",
+        inviteError,
+      );
       return NextResponse.json(
         { error: inviteError.message || "Failed to send invitation email." },
         { status: 500 },
