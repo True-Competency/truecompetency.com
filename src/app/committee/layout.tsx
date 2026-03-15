@@ -153,21 +153,15 @@ export default function CommitteeLayout({
     "text-[var(--accent)] bg-[color:var(--accent)]/10 font-semibold";
   const subIdle =
     "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--field)]";
+  const sidebarWidthClass = collapsed ? "w-16" : "w-60";
+  const contentOffsetClass = collapsed ? "ml-16" : "ml-60";
 
   return (
-    <div className="flex" style={{ flex: 1, minHeight: 0 }}>
+    <div className="relative" style={{ flex: 1, minHeight: 0 }}>
       {/* ── Sidebar ── */}
       <aside
-        className={`${
-          collapsed ? "w-16" : "w-60"
-        } flex-shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200`}
-        style={{
-          position: "sticky",
-          top: "0",
-          height: "100vh",
-          overflowY: "auto",
-          alignSelf: "flex-start",
-        }}
+        className={`${sidebarWidthClass} fixed inset-y-0 left-0 z-30 flex flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200`}
+        style={{ overflowY: "auto" }}
       >
         {/* Logo + portal label */}
         <div className="px-3 pt-4 pb-4 border-b border-[var(--border)]">
@@ -440,7 +434,11 @@ export default function CommitteeLayout({
       </aside>
 
       {/* ── Page content ── */}
-      <div className="flex-1 min-w-0">{children}</div>
+      <div
+        className={`${contentOffsetClass} min-w-0 transition-[margin] duration-200`}
+      >
+        {children}
+      </div>
     </div>
   );
 }
