@@ -18,6 +18,8 @@ import {
   Hospital,
   PanelLeftClose,
   PanelLeftOpen,
+  LifeBuoy,
+  X,
 } from "lucide-react";
 
 type Profile = {
@@ -42,6 +44,12 @@ export default function CommitteeLayout({
   const [profile, setProfile] = useState<Profile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportSubject, setSupportSubject] = useState("Question");
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportSending, setSupportSending] = useState(false);
+  const [supportError, setSupportError] = useState<string | null>(null);
+  const [supportSuccess, setSupportSuccess] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -85,6 +93,15 @@ export default function CommitteeLayout({
 
   useEffect(() => {
     setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    setSupportOpen(false);
+    setSupportError(null);
+    setSupportSuccess(null);
+    setSupportSending(false);
+    setSupportSubject("Question");
+    setSupportMessage("");
   }, [pathname]);
 
   useEffect(() => {
@@ -138,6 +155,59 @@ export default function CommitteeLayout({
     const redir = encodeURIComponent(pathname || "/committee");
     router.replace(`/signin?redirect=${redir}`);
     router.refresh();
+  }
+
+  function closeSupportModal() {
+    if (supportSending) return;
+    setSupportOpen(false);
+    setSupportError(null);
+    setSupportSuccess(null);
+    setSupportSubject("Question");
+    setSupportMessage("");
+  }
+
+  async function handleSupportSubmit() {
+    try {
+      setSupportSending(true);
+      setSupportError(null);
+      setSupportSuccess(null);
+
+      const trimmedMessage = supportMessage.trim();
+      if (!trimmedMessage) {
+        throw new Error("Please describe your issue or question.");
+      }
+      if (trimmedMessage.length > 2000) {
+        throw new Error("Message must be 2000 characters or fewer.");
+      }
+
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: supportSubject,
+          message: trimmedMessage,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Could not send your message.");
+      }
+
+      setSupportSuccess("Message sent! We'll be in touch soon.");
+      window.setTimeout(() => {
+        setSupportOpen(false);
+        setSupportError(null);
+        setSupportSuccess(null);
+        setSupportSubject("Question");
+        setSupportMessage("");
+      }, 2000);
+    } catch (e) {
+      setSupportError(
+        e instanceof Error ? e.message : "Could not send your message.",
+      );
+    } finally {
+      setSupportSending(false);
+    }
   }
 
   const navLinkBase =
@@ -325,6 +395,24 @@ export default function CommitteeLayout({
           )}
         </nav>
 
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={() => {
+              setSupportOpen(true);
+              setSupportError(null);
+              setSupportSuccess(null);
+            }}
+            className={`w-full flex items-center rounded-full border border-[var(--border)] bg-white px-3 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-sm transition-all duration-150 hover:border-[color:var(--accent)] hover:bg-[color:var(--accent)] hover:text-white ${
+              collapsed ? "h-10 justify-center px-0 rounded-xl" : "gap-3"
+            }`}
+            title="Get Help & Support"
+          >
+            <LifeBuoy size={16} />
+            {!collapsed && <span>Get Help & Support</span>}
+          </button>
+        </div>
+
         {/* Profile footer menu */}
         <div className="px-3 py-4 border-t border-[var(--border)] relative">
           <button
@@ -439,6 +527,122 @@ export default function CommitteeLayout({
       >
         {children}
       </div>
+
+      {supportOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-4"
+          onClick={closeSupportModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="support-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-4">
+              <div>
+                <h2
+                  id="support-title"
+                  className="text-lg font-semibold text-[var(--foreground)]"
+                >
+                  Help & Support
+                </h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Have any questions/feedback/suggestions? Ask us here!
+                  We&apos;ll get back to you at your email address.
+                </p>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  You can also contact us directly at{" "}
+                  <a
+                    href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`}
+                    className="text-[#5170ff] hover:underline"
+                  >
+                    {process.env.NEXT_PUBLIC_SUPPORT_EMAIL}
+                  </a>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSupportModal}
+                className="grid h-8 w-8 place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+                aria-label="Close support dialog"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-[var(--muted)]">Subject</span>
+                <select
+                  value={supportSubject}
+                  onChange={(e) => setSupportSubject(e.target.value)}
+                  disabled={supportSending}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none"
+                >
+                  <option value="Question">Question</option>
+                  <option value="Bug Report">Bug Report</option>
+                  <option value="Feature Request">Feature Request</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+
+              <label className="grid gap-1.5 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[var(--muted)]">Message</span>
+                  <span className="text-xs text-[var(--muted)]">
+                    {supportMessage.length}/2000
+                  </span>
+                </div>
+                <textarea
+                  value={supportMessage}
+                  onChange={(e) =>
+                    setSupportMessage(e.target.value.slice(0, 2000))
+                  }
+                  placeholder="Describe your issue or question..."
+                  maxLength={2000}
+                  rows={7}
+                  disabled={supportSending}
+                  className="min-h-[160px] resize-y rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none"
+                />
+              </label>
+
+              {supportError && (
+                <div className="rounded-xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-2 text-sm text-[var(--err)]">
+                  {supportError}
+                </div>
+              )}
+
+              {supportSuccess && (
+                <div className="rounded-xl border border-[color:var(--ok)]/30 bg-[color:var(--ok)]/10 px-3 py-2 text-sm text-[var(--ok)]">
+                  {supportSuccess}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeSupportModal}
+                  disabled={supportSending}
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSupportSubmit}
+                  disabled={supportSending}
+                  className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+                  style={{ background: "var(--accent)" }}
+                >
+                  {supportSending ? "Sending..." : "Send Message"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
