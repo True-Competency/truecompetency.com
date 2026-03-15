@@ -1075,7 +1075,7 @@ export default function CompetenciesPage() {
                                 <img
                                   src={item.signed_url}
                                   alt={item.file_name}
-                                  className="h-48 w-full object-cover"
+                                  className="max-h-[28rem] w-full object-contain bg-black/5"
                                 />
                                 <div className="border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
                                   {item.file_name}
@@ -1092,7 +1092,7 @@ export default function CompetenciesPage() {
                               >
                                 <video
                                   controls
-                                  className="h-48 w-full bg-black object-cover"
+                                  className="max-h-[28rem] w-full bg-black"
                                   src={item.signed_url}
                                 />
                                 <div className="border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
