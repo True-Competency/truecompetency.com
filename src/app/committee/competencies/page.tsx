@@ -119,6 +119,7 @@ export default function CompetenciesPage() {
     useState<(typeof DIFF_ORDER)[number]>("Intermediate");
   const [propTagIds, setPropTagIds] = useState<string[]>([]);
   const [propReason, setPropReason] = useState("");
+  const [propBypass, setPropBypass] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Propose Question modal
@@ -137,6 +138,7 @@ export default function CompetenciesPage() {
   const [qDragActive, setQDragActive] = useState(false);
   const [qUploadError, setQUploadError] = useState<string | null>(null);
   const [submittingQ, setSubmittingQ] = useState(false);
+  const [qBypass, setQBypass] = useState(false);
   const [questionPreviewComp, setQuestionPreviewComp] = useState<Competency | null>(
     null,
   );
@@ -381,6 +383,17 @@ export default function CompetenciesPage() {
     setQAttachments([]);
     setQDragActive(false);
     setQUploadError(null);
+    setQBypass(false);
+  }
+
+  function closeProposeModal() {
+    setProposeOpen(false);
+    setPropBypass(false);
+  }
+
+  function closeQuestionModal() {
+    setQModalOpen(false);
+    setQBypass(false);
   }
 
   function formatBytes(bytes: number) {
@@ -524,7 +537,8 @@ export default function CompetenciesPage() {
       const { data: u2 } = await supabase.auth.getUser();
       const uid = u2.user?.id;
       if (!uid) throw new Error("Please sign in again.");
-      if (isChair) {
+      const directInsert = isChair && propBypass;
+      if (directInsert) {
         const { data: newCompetencyId, error: rpcErr } = await supabase.rpc(
           "chair_create_competency",
           {
@@ -564,13 +578,14 @@ export default function CompetenciesPage() {
         });
         if (error) throw error;
       }
-      setProposeOpen(false);
+      closeProposeModal();
       setPropName("");
       setPropTagIds([]);
       setPropDifficulty("Intermediate");
       setPropReason("");
+      setPropBypass(false);
       showToast(
-        isChair
+        directInsert
           ? "Competency added directly."
           : "Competency proposal submitted.",
       );
@@ -601,7 +616,7 @@ export default function CompetenciesPage() {
       let newId: string | null = null;
       let directInsert = false;
 
-      if (isChair) {
+      if (isChair && qBypass) {
         directInsert = true;
         const { data: questionId, error: rpcErr } = await supabase.rpc(
           "chair_create_question",
@@ -701,7 +716,7 @@ export default function CompetenciesPage() {
         }
       }
 
-      setQModalOpen(false);
+      closeQuestionModal();
       resetQForm();
       if (failedUploads.length > 0) {
         setErr(
@@ -712,13 +727,13 @@ export default function CompetenciesPage() {
       }
       showToast(
         uploadedCount > 0
-          ? `${isChair ? "Question added" : "Question submitted"} with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
-          : isChair
+          ? `${directInsert ? "Question added" : "Question submitted"} with ${uploadedCount} attachment${uploadedCount > 1 ? "s" : ""}.`
+          : directInsert
             ? "Question added directly."
             : "Question proposal submitted.",
       );
 
-      if (isChair) {
+      if (directInsert) {
         const createdQuestion: CompetencyQuestion = {
           id: newId,
           competency_id: compId,
@@ -1294,7 +1309,7 @@ export default function CompetenciesPage() {
         <div
           role="dialog"
           aria-modal="true"
-          onClick={() => setProposeOpen(false)}
+          onClick={closeProposeModal}
           className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4"
         >
           <div
@@ -1306,7 +1321,7 @@ export default function CompetenciesPage() {
                 Propose a new competency
               </h3>
               <button
-                onClick={() => setProposeOpen(false)}
+                onClick={closeProposeModal}
                 className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
@@ -1382,9 +1397,21 @@ export default function CompetenciesPage() {
                 />
               </label>
 
+              {isChair && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={propBypass}
+                    onChange={(e) => setPropBypass(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-[#5170ff] focus:ring-[#5170ff]"
+                  />
+                  Skip review and publish directly
+                </label>
+              )}
+
               <div className="flex justify-end gap-2 mt-1">
                 <button
-                  onClick={() => setProposeOpen(false)}
+                  onClick={closeProposeModal}
                   className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                 >
                   Cancel
@@ -1408,7 +1435,7 @@ export default function CompetenciesPage() {
         <div
           role="dialog"
           aria-modal="true"
-          onClick={() => setQModalOpen(false)}
+          onClick={closeQuestionModal}
           className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4"
         >
           <div
@@ -1420,7 +1447,7 @@ export default function CompetenciesPage() {
                 Propose a test question
               </h3>
               <button
-                onClick={() => setQModalOpen(false)}
+                onClick={closeQuestionModal}
                 className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
@@ -1747,9 +1774,21 @@ export default function CompetenciesPage() {
                 </div>
               </div>
 
+              {isChair && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={qBypass}
+                    onChange={(e) => setQBypass(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-[#5170ff] focus:ring-[#5170ff]"
+                  />
+                  Skip review and publish directly
+                </label>
+              )}
+
               <div className="flex justify-end gap-2 mt-1">
                 <button
-                  onClick={() => setQModalOpen(false)}
+                  onClick={closeQuestionModal}
                   className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
                 >
                   Cancel
