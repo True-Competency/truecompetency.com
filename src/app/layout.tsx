@@ -3,7 +3,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import Footer from "@/components/footer";
 import FloatingBackButton from "@/components/FloatingBackButton";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -43,7 +42,6 @@ export default function RootLayout({
             <main className="flex-1 flex flex-col overflow-x-hidden">
               {children}
             </main>
-            <Footer />
             <Analytics />
             <SpeedInsights />
           </div>
