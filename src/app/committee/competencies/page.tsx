@@ -36,11 +36,23 @@ type CompetencyQuestion = {
   body: string;
   created_at: string;
   options: QuestionOption[];
+  media: QuestionMediaItem[];
 };
 
 type QuestionAttachment = {
   id: string;
   file: File;
+};
+
+type QuestionMediaItem = {
+  id: string;
+  question_id: string | null;
+  file_name: string;
+  file_type: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  storage_path: string;
+  signed_url: string | null;
 };
 
 type TagRow = {
@@ -188,6 +200,7 @@ export default function CompetenciesPage() {
         }>;
         const questionIds = liveQuestions.map((q) => q.id);
         const questionOptionsMap: Record<string, QuestionOption[]> = {};
+        const questionMediaMap: Record<string, QuestionMediaItem[]> = {};
 
         if (questionIds.length > 0) {
           const { data: optionRows, error: optionsErr } = await supabase
@@ -214,6 +227,37 @@ export default function CompetenciesPage() {
               });
             },
           );
+
+          const { data: mediaRows, error: mediaErr } = await supabase
+            .from("question_media")
+            .select(
+              "id, question_id, file_name, file_type, mime_type, file_size, storage_path, created_at",
+            )
+            .in("question_id", questionIds)
+            .order("created_at", { ascending: true });
+          if (mediaErr) throw mediaErr;
+
+          const mediaWithUrls = await Promise.all(
+            ((mediaRows ?? []) as Omit<QuestionMediaItem, "signed_url">[]).map(
+              async (item) => {
+                const { data: signed } = await supabase.storage
+                  .from("question-media")
+                  .createSignedUrl(item.storage_path, 60 * 60);
+                return {
+                  ...item,
+                  signed_url: signed?.signedUrl ?? null,
+                } as QuestionMediaItem;
+              },
+            ),
+          );
+
+          mediaWithUrls.forEach((item) => {
+            if (!item.question_id) return;
+            if (!questionMediaMap[item.question_id]) {
+              questionMediaMap[item.question_id] = [];
+            }
+            questionMediaMap[item.question_id].push(item);
+          });
         }
 
         const questionsMap: Record<string, CompetencyQuestion[]> = {};
@@ -224,6 +268,7 @@ export default function CompetenciesPage() {
           questionsMap[question.competency_id].push({
             ...question,
             options: questionOptionsMap[question.id] ?? [],
+            media: questionMediaMap[question.id] ?? [],
           });
         });
 
@@ -679,6 +724,7 @@ export default function CompetenciesPage() {
           competency_id: compId,
           body: prompt,
           created_at: new Date().toISOString(),
+          media: [],
           options: cleaned.map((o, idx) => ({
             label: String.fromCharCode("A".charCodeAt(0) + idx),
             body: o.body,
@@ -1000,6 +1046,88 @@ export default function CompetenciesPage() {
                       </div>
                     ))}
                   </div>
+
+                  {question.media.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                        Media
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {question.media.map((item) => {
+                          const kind = (item.file_type ?? "").toLowerCase();
+                          const isImage =
+                            kind === "image" ||
+                            (item.mime_type ?? "").startsWith("image/");
+                          const isVideo =
+                            kind === "video" ||
+                            (item.mime_type ?? "").startsWith("video/");
+
+                          if (isImage && item.signed_url) {
+                            return (
+                              <a
+                                key={item.id}
+                                href={item.signed_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--field)] transition-all hover:border-[color:var(--accent)]"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={item.signed_url}
+                                  alt={item.file_name}
+                                  className="h-48 w-full object-cover"
+                                />
+                                <div className="border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
+                                  {item.file_name}
+                                </div>
+                              </a>
+                            );
+                          }
+
+                          if (isVideo && item.signed_url) {
+                            return (
+                              <div
+                                key={item.id}
+                                className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--field)]"
+                              >
+                                <video
+                                  controls
+                                  className="h-48 w-full bg-black object-cover"
+                                  src={item.signed_url}
+                                />
+                                <div className="border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
+                                  {item.file_name}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <a
+                              key={item.id}
+                              href={item.signed_url ?? "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-3 text-xs text-[var(--foreground)] transition-all hover:border-[color:var(--accent)]"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">
+                                  {item.file_name}
+                                </p>
+                                <p className="mt-0.5 text-[var(--muted)]">
+                                  Open attachment
+                                </p>
+                              </div>
+                              <Paperclip
+                                size={14}
+                                className="flex-shrink-0 text-[var(--muted)]"
+                              />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
