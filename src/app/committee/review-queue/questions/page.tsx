@@ -549,7 +549,7 @@ export default function ReviewQueueQuestions() {
                                 src={m.signed_url}
                                 controls
                                 preload="metadata"
-                                className="w-full h-36 rounded-lg border border-[var(--border)] bg-black"
+                                className="block h-auto max-h-[28rem] w-full rounded-lg border border-[var(--border)] bg-black"
                               />
                             )}
                             {(!m.signed_url || (!isImage && !isVideo)) && (
