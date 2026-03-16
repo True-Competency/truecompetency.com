@@ -938,7 +938,7 @@ function Landing({
                 <FounderCard
                   name="Marc James de Man"
                   role="CEO & Co-Founder"
-                  bio="Interventional cardiologist with a passion for standardized training and clinical excellence."
+                  bio="Medical student at McGill University with experience in early-stage ventures, focused on building reliable infrastructure for medical training governance."
                   src="/founders/CEO_02.jpg"
                   featured={false}
                 />
@@ -948,7 +948,7 @@ function Landing({
               <FounderCard
                 name="Dr. Kwan Lee"
                 role="CEO & Co-Founder"
-                bio="Clinical educator dedicated to building evidence-based frameworks for procedural competency."
+                bio="Interventional cardiologist and Associate Professor at Mayo Clinic Arizona, bringing clinical leadership and accreditation expertise to the platform."
                 src="/founders/CEO_01.jpg"
                 imageAlt="Dr. Kwan Lee portrait"
                 featured={true}
@@ -987,29 +987,39 @@ function Landing({
               </h2>
             </div>
           </FadeIn>
-          <div className="flex flex-col items-center justify-center gap-10 md:flex-row md:gap-16">
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8">
             <FadeIn>
-              <Image
-                src="/sponsors/APSC_Logo.png"
-                alt="APSC"
-                width={280}
-                height={120}
-                className="h-16 w-auto object-contain grayscale opacity-70 md:h-20"
-              />
+              <div className="flex h-24 items-center justify-center">
+                <Image
+                  src="/sponsors/APSC_Logo.png"
+                  alt="APSC"
+                  width={280}
+                  height={120}
+                  className="h-16 w-auto object-contain grayscale opacity-70 md:h-20"
+                />
+              </div>
             </FadeIn>
             <FadeIn delay={100}>
-              <div className="flex h-16 w-[220px] items-center justify-center text-center text-lg font-semibold tracking-wide text-gray-400 md:h-20 md:w-[280px]">
-                Dobson Centre
+              <div className="flex h-24 items-center justify-center">
+                <Image
+                  src="/sponsors/mcgill_dobson_centre.png"
+                  alt="McGill Dobson Centre for Entrepreneurship"
+                  width={280}
+                  height={120}
+                  className="h-16 w-auto object-contain grayscale opacity-70 md:h-20"
+                />
               </div>
             </FadeIn>
             <FadeIn delay={200}>
-              <Image
-                src="/sponsors/mcgill_ventures.png"
-                alt="McGill Ventures"
-                width={280}
-                height={120}
-                className="h-16 w-auto object-contain grayscale opacity-70 md:h-20"
-              />
+              <div className="flex h-24 items-center justify-center">
+                <Image
+                  src="/sponsors/mcgill_ventures.png"
+                  alt="McGill Ventures"
+                  width={280}
+                  height={120}
+                  className="h-16 w-auto object-contain grayscale opacity-70 md:h-20"
+                />
+              </div>
             </FadeIn>
           </div>
           <FadeIn delay={200}>
