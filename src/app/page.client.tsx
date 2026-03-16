@@ -265,7 +265,7 @@ const ROLES = [
     id: "society",
     label: "Societies & Committees",
     icon: Building2,
-    color: "#facc15",
+    color: "#5170ff",
     points: [
       "Define and organize competency frameworks",
       "Build question banks tied to competencies",
@@ -277,7 +277,7 @@ const ROLES = [
     id: "physician",
     label: "Attending Physicians",
     icon: Stethoscope,
-    color: "#34d399",
+    color: "#5170ff",
     points: [
       "Access society-approved competency content",
       "Assess trainee performance against defined standards",
@@ -346,10 +346,7 @@ function RoleTabs() {
         <ul className="space-y-3">
           {role.points.map((p) => (
             <li key={p} className="flex items-start gap-3 text-gray-600">
-              <div
-                className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0"
-                style={{ background: role.color }}
-              />
+              <div className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-[#5170ff]" />
               <span className="leading-relaxed">{p}</span>
             </li>
           ))}
@@ -663,10 +660,10 @@ function Landing({
       <div className="section-divider mx-auto max-w-4xl" />
 
       {/* ── PROBLEM ── */}
-      <section className="py-24 bg-gray-50/50">
-        <div className="mx-auto max-w-4xl px-6">
+      <section className="py-24 bg-white overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6">
           <FadeIn>
-            <div className="text-center mb-14">
+            <div className="text-center mb-16">
               <p className="text-xs font-semibold uppercase tracking-widest text-[#5170ff] mb-3">
                 The Problem
               </p>
@@ -676,49 +673,85 @@ function Landing({
               >
                 A broken chain
               </h2>
+              <p className="mt-4 text-gray-400 max-w-xl mx-auto">
+                Each group works in isolation. No shared record. No common
+                standard.
+              </p>
             </div>
           </FadeIn>
-          <div className="space-y-4">
-            {[
-              {
-                role: "Societies",
-                icon: Building2,
-                problem:
-                  "Publish competency standards — but have no way to verify they're being taught or tracked.",
-              },
-              {
-                role: "Attending Physicians",
-                icon: Stethoscope,
-                problem:
-                  "Assess trainees — but with no shared structure or longitudinal record.",
-              },
-              {
-                role: "Trainees",
-                icon: GraduationCap,
-                problem:
-                  "Progress through training — but without clear milestones or defensible proof of readiness.",
-              },
-            ].map((item, i) => {
-              const ProblemIcon = item.icon;
-              return (
-                <FadeIn key={item.role} delay={i * 100}>
-                  <div className="flex items-start gap-5 rounded-2xl border border-gray-100 bg-white p-6 hover:shadow-md transition-all">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-[#5170ff]/10 text-[#5170ff]">
-                      <ProblemIcon size={24} />
+
+          {/* Chain layout */}
+          <div className="relative">
+            <div className="grid md:grid-cols-3 gap-8 relative">
+              {[
+                {
+                  role: "Societies",
+                  action: "Publish standards",
+                  problem:
+                    "have no way to verify they're being taught or tracked.",
+                  Icon: Building2,
+                  color: "#f59e0b",
+                  bg: "#fffbeb",
+                  border: "#fde68a",
+                },
+                {
+                  role: "Attending Physicians",
+                  action: "Assess trainees",
+                  problem: "with no shared structure or longitudinal record.",
+                  Icon: Stethoscope,
+                  color: "#10b981",
+                  bg: "#f0fdf4",
+                  border: "#a7f3d0",
+                },
+                {
+                  role: "Trainees",
+                  action: "Progress through training",
+                  problem:
+                    "without clear milestones or defensible proof of readiness.",
+                  Icon: GraduationCap,
+                  color: "#5170ff",
+                  bg: "#eff2ff",
+                  border: "#c7d2fe",
+                },
+              ].map((item, i) => (
+                <FadeIn key={item.role} delay={i * 150}>
+                  <div className="relative flex flex-col">
+                    {/* Icon bubble */}
+                    <div className="flex justify-center mb-3">
+                      <div className="w-14 h-14 flex items-center justify-center relative z-10">
+                        <item.Icon size={28} style={{ color: "#5170ff" }} />
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 mb-1">
+
+                    {/* Card */}
+                    <div className="flex-1 rounded-3xl bg-gray-50 border border-gray-100 p-6 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-widest mb-2 text-[#5170ff]">
                         {item.role}
                       </p>
-                      <p className="text-gray-500 leading-relaxed">
+                      <p
+                        className="font-semibold text-gray-900 mb-3 text-lg"
+                        style={{ fontFamily: "var(--font-heading)" }}
+                      >
+                        {item.action}
+                      </p>
+                      {/* Break line */}
+                      <div className="flex items-center gap-2 my-4">
+                        <div className="flex-1 h-px bg-gray-200" />
+                        <span className="text-xs font-semibold text-red-400 uppercase tracking-widest px-2">
+                          but
+                        </span>
+                        <div className="flex-1 h-px bg-gray-200" />
+                      </div>
+                      <p className="text-gray-500 text-sm leading-relaxed">
                         {item.problem}
                       </p>
                     </div>
                   </div>
                 </FadeIn>
-              );
-            })}
+              ))}
+            </div>
           </div>
+
           <FadeIn delay={300}>
             <div className="mt-10 text-center">
               <p
@@ -929,6 +962,62 @@ function Landing({
 
       <div className="section-divider mx-auto max-w-4xl" />
 
+      {/* ── DASHBOARD PREVIEW ── */}
+      <section className="py-24 bg-white overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6">
+          <FadeIn>
+            <div className="text-center mb-12">
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#5170ff] mb-3">
+                The Platform
+              </p>
+              <h2
+                className="text-4xl font-bold text-gray-900"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Built for how clinicians actually work
+              </h2>
+              <p className="mt-4 text-gray-400 max-w-xl mx-auto">
+                A glimpse into the committee dashboard — where competencies are
+                managed, reviewed, and governed.
+              </p>
+            </div>
+          </FadeIn>
+          <FadeIn delay={150}>
+            <div className="relative mx-auto max-w-5xl">
+              {/* Browser chrome */}
+              <div className="rounded-2xl overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.15)] border border-gray-200">
+                {/* Browser top bar */}
+                <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                    <div className="w-3 h-3 rounded-full bg-green-400" />
+                  </div>
+                  <div className="flex-1 bg-white rounded-md px-3 py-1 text-xs text-gray-400 border border-gray-200">
+                    truecompetency.com/committee/competencies
+                  </div>
+                </div>
+                {/* Screenshot */}
+                <Image
+                  src="/dashboard_screen.png"
+                  alt="True Competency committee dashboard"
+                  width={1280}
+                  height={900}
+                  className="w-full h-auto"
+                />
+              </div>
+              {/* Gradient fade at bottom */}
+              <div
+                className="absolute bottom-0 left-0 right-0 h-32 rounded-b-2xl"
+                style={{
+                  background: "linear-gradient(to top, white, transparent)",
+                }}
+              />
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ── TEAM ── */}
       <section id="team" className="py-24 bg-white">
         <div className="mx-auto max-w-6xl px-6">
@@ -964,7 +1053,7 @@ function Landing({
             <FadeIn delay={100}>
               <FounderCard
                 name="Dr. Kwan Lee"
-                role="CEO & Co-Founder"
+                role="CMO & Co-Founder"
                 bio="Interventional cardiologist and Associate Professor at Mayo Clinic Arizona, bringing clinical leadership and accreditation expertise to the platform."
                 src="/founders/CEO_01.jpg"
                 imageAlt="Dr. Kwan Lee portrait"
