@@ -117,7 +117,7 @@ export default function TraineeDashboard() {
     TraineeLeaderboardEntry[]
   >([]);
   const [tagLeaderboard, setTagLeaderboard] = useState<TagLeaderboardEntry[]>(
-    []
+    [],
   );
 
   // ui
@@ -137,7 +137,7 @@ export default function TraineeDashboard() {
     "all" | "beginner" | "intermediate" | "expert"
   >("all");
   const [selectedTagsEnroll, setSelectedTagsEnroll] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [searchQEnroll, setSearchQEnroll] = useState("");
 
@@ -164,7 +164,7 @@ export default function TraineeDashboard() {
         const { data: prof, error: profErr } = await supabase
           .from("profiles")
           .select(
-            "id, role, first_name, last_name, full_name, email, university, hospital, country_name, avatar_path"
+            "id, role, first_name, last_name, full_name, email, university, hospital, country_name, avatar_path",
           )
           .eq("id", uid)
           .single<Profile>();
@@ -178,14 +178,21 @@ export default function TraineeDashboard() {
         setGreetingName(name || prof.email || "there");
 
         // all competencies
-        const [{ data: comps, error: compsErr }, { data: tagsData, error: tagsErr }] =
-          await Promise.all([
-            supabase
-              .from("competencies")
-              .select("id, name, difficulty, tags, position, test_question, created_at")
-              .order("position", { ascending: true, nullsFirst: false }),
-            supabase.from("tags").select("id, name").order("name", { ascending: true }),
-          ]);
+        const [
+          { data: comps, error: compsErr },
+          { data: tagsData, error: tagsErr },
+        ] = await Promise.all([
+          supabase
+            .from("competencies")
+            .select(
+              "id, name, difficulty, tags, position, test_question, created_at",
+            )
+            .order("position", { ascending: true, nullsFirst: false }),
+          supabase
+            .from("tags")
+            .select("id, name")
+            .order("name", { ascending: true }),
+        ]);
         if (compsErr) throw compsErr;
         if (tagsErr) throw tagsErr;
         if (cancelled) return;
@@ -218,7 +225,7 @@ export default function TraineeDashboard() {
         if (aErr) throw aErr;
 
         const enrolled = new Set<string>(
-          (assigns ?? []).map((r) => r.competency_id)
+          (assigns ?? []).map((r) => r.competency_id),
         );
         setAssignments(enrolled);
 
@@ -226,7 +233,7 @@ export default function TraineeDashboard() {
         const { data: progress, error: pErr } = await supabase
           .from("student_competency_progress")
           .select(
-            "student_id, competency_id, total_questions, answered_questions, pct"
+            "student_id, competency_id, total_questions, answered_questions, pct",
           )
           .eq("student_id", prof.id)
           .returns<ProgressRow[]>();
@@ -240,7 +247,7 @@ export default function TraineeDashboard() {
         const { data: leaderboardRows, error: leaderboardErr } = await supabase
           .from("student_competency_progress")
           .select(
-            "student_id, competency_id, pct, profiles!inner(full_name, first_name, last_name, country_name, country_code, role)"
+            "student_id, competency_id, pct, profiles!inner(full_name, first_name, last_name, country_name, country_code, role)",
           )
           .gte("pct", 100)
           .eq("profiles.role", "trainee")
@@ -386,7 +393,7 @@ export default function TraineeDashboard() {
             assigned_at: now,
           },
         ],
-        { onConflict: "student_id,competency_id" }
+        { onConflict: "student_id,competency_id" },
       );
       if (error) {
         // rollback
@@ -398,7 +405,7 @@ export default function TraineeDashboard() {
         setErr(error.message);
       }
     },
-    [me]
+    [me],
   );
 
   /** Bulk-enroll (a.k.a. "Bulk test") by difficulty */
@@ -413,7 +420,7 @@ export default function TraineeDashboard() {
           : allComps.filter(
               (c) =>
                 (c.difficulty ?? "").toLowerCase() === diff &&
-                !assignments.has(c.id)
+                !assignments.has(c.id),
             );
 
       const targets = pool
@@ -422,7 +429,7 @@ export default function TraineeDashboard() {
 
       if (targets.length === 0) {
         setErr(
-          "No competencies available to bulk test for the selected difficulty."
+          "No competencies available to bulk test for the selected difficulty.",
         );
         return;
       }
@@ -455,7 +462,7 @@ export default function TraineeDashboard() {
         setErr(error.message);
       }
     },
-    [me, allComps, assignments]
+    [me, allComps, assignments],
   );
 
   /* ---------- derive filters & splits ---------- */
@@ -466,7 +473,7 @@ export default function TraineeDashboard() {
 
     if (diffFilter !== "all") {
       list = list.filter(
-        (c) => (c.difficulty ?? "").toLowerCase() === diffFilter
+        (c) => (c.difficulty ?? "").toLowerCase() === diffFilter,
       );
     }
 
@@ -498,12 +505,12 @@ export default function TraineeDashboard() {
 
   const enrolledList = useMemo(
     () => filtered.filter((c) => assignments.has(c.id)),
-    [filtered, assignments]
+    [filtered, assignments],
   );
 
   const availableList = useMemo(
     () => filtered.filter((c) => !assignments.has(c.id)),
-    [filtered, assignments]
+    [filtered, assignments],
   );
 
   // split enrolled into in-progress vs completed (>= 100%)
@@ -513,7 +520,7 @@ export default function TraineeDashboard() {
         const pct = progressByComp.get(c.id)?.pct ?? 0;
         return pct >= 100; // auto-completed when backend pct is 100
       }),
-    [enrolledList, progressByComp]
+    [enrolledList, progressByComp],
   );
 
   const inProgressList: Competency[] = useMemo(
@@ -522,7 +529,7 @@ export default function TraineeDashboard() {
         const pct = progressByComp.get(c.id)?.pct ?? 0;
         return pct < 100; // still in progress if backend pct < 100
       }),
-    [enrolledList, progressByComp]
+    [enrolledList, progressByComp],
   );
 
   const completionStats = useMemo(() => {
@@ -555,7 +562,7 @@ export default function TraineeDashboard() {
 
       const pct = Math.max(
         0,
-        Math.min(100, Math.round(progressByComp.get(c.id)?.pct ?? 0))
+        Math.min(100, Math.round(progressByComp.get(c.id)?.pct ?? 0)),
       );
       if (pct >= 100) {
         completedTotal++;
@@ -573,7 +580,7 @@ export default function TraineeDashboard() {
       beginnerPct: pctSafe(completedByDiff.beginner, enrolledByDiff.beginner),
       intermediatePct: pctSafe(
         completedByDiff.intermediate,
-        enrolledByDiff.intermediate
+        enrolledByDiff.intermediate,
       ),
       expertPct: pctSafe(completedByDiff.expert, enrolledByDiff.expert),
     };
@@ -584,7 +591,7 @@ export default function TraineeDashboard() {
     let list = availableList;
     if (diffFilterEnroll !== "all") {
       list = list.filter(
-        (c) => (c.difficulty ?? "").toLowerCase() === diffFilterEnroll
+        (c) => (c.difficulty ?? "").toLowerCase() === diffFilterEnroll,
       );
     }
     if (selectedTagsEnroll.size > 0) {
@@ -654,8 +661,8 @@ export default function TraineeDashboard() {
   };
 
   const meAvatarUrl = me?.avatar_path
-    ? supabase.storage.from("profile-pictures").getPublicUrl(me.avatar_path).data
-        .publicUrl
+    ? supabase.storage.from("profile-pictures").getPublicUrl(me.avatar_path)
+        .data.publicUrl
     : "";
 
   /* ---------- render ---------- */
@@ -672,7 +679,7 @@ export default function TraineeDashboard() {
             <div className="mt-4 flex items-center gap-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/APSC_Logo.png"
+                src="/sponsors/APSC_Logo.png"
                 alt="Asian Pacific Society of Cardiology logo"
                 className="h-20 w-auto object-contain"
               />
@@ -787,8 +794,8 @@ export default function TraineeDashboard() {
                   label="Completed"
                   value={formatNumber(
                     enrolledList.filter(
-                      (c) => (progressByComp.get(c.id)?.pct ?? 0) >= 100
-                    ).length
+                      (c) => (progressByComp.get(c.id)?.pct ?? 0) >= 100,
+                    ).length,
                   )}
                   color="var(--ok)"
                 />
@@ -1667,12 +1674,10 @@ function FilterChip({
       onClick={onClick}
       onMouseEnter={(e) => {
         if (!active) {
-          (
-            e.currentTarget as HTMLButtonElement
-          ).style.background = `color-mix(in oklab, ${hoverBase} 12%, transparent)`;
-          (
-            e.currentTarget as HTMLButtonElement
-          ).style.borderColor = `color-mix(in oklab, ${hoverBase} 28%, transparent)`;
+          (e.currentTarget as HTMLButtonElement).style.background =
+            `color-mix(in oklab, ${hoverBase} 12%, transparent)`;
+          (e.currentTarget as HTMLButtonElement).style.borderColor =
+            `color-mix(in oklab, ${hoverBase} 28%, transparent)`;
         }
       }}
       onMouseLeave={(e) => {
@@ -1692,7 +1697,7 @@ function FilterChip({
       ].join(" ")}
       style={{
         borderColor: "var(--border)",
-        background: active ? color ?? "var(--field)" : "var(--surface)",
+        background: active ? (color ?? "var(--field)") : "var(--surface)",
         color: active ? "var(--foreground)" : "var(--foreground)",
       }}
     >

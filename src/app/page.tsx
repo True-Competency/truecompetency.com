@@ -626,38 +626,6 @@ function Landing({
               </button>
             </div>
           </FadeIn>
-
-          {/* Sponsor logos */}
-          <FadeIn delay={400}>
-            <div className="mt-16 flex flex-wrap items-center justify-center gap-8">
-              <span className="text-xs font-medium uppercase tracking-widest text-gray-400">
-                Presented at
-              </span>
-              <div className="flex items-center gap-8 flex-wrap justify-center">
-                <Image
-                  src="/APSC_Logo.png"
-                  alt="APSC"
-                  width={100}
-                  height={40}
-                  className="h-8 w-auto object-contain opacity-50 hover:opacity-80 transition-opacity partner-logo"
-                />
-                <Image
-                  src="/TCIP_White_Logo.png"
-                  alt="TCIP"
-                  width={100}
-                  height={40}
-                  className="h-8 w-auto object-contain opacity-50 hover:opacity-80 transition-opacity block dark:hidden partner-logo"
-                />
-                <Image
-                  src="/TCIP_Black_Logo.png"
-                  alt="TCIP"
-                  width={100}
-                  height={40}
-                  className="h-8 w-auto object-contain opacity-50 hover:opacity-80 transition-opacity hidden dark:block partner-logo"
-                />
-              </div>
-            </div>
-          </FadeIn>
         </div>
       </section>
 

@@ -109,11 +109,7 @@ function PasswordField({
   );
 }
 
-function SignInRightPanel({
-  theme,
-}: {
-  theme: string | undefined;
-}) {
+function SignInRightPanel({ theme }: { theme: string | undefined }) {
   const tcipLogoSrc =
     theme === "dark" ? "/TCIP_White_Logo.png" : "/TCIP_Black_Logo.png";
 
@@ -189,7 +185,7 @@ function SignInRightPanel({
       <div className="relative z-10 mt-8">
         <div className="flex items-center justify-center gap-8 opacity-80">
           <Image
-            src="/APSC_Logo.png"
+            src="/sponsors/APSC_Logo.png"
             alt="Asian Pacific Society of Cardiology"
             width={70}
             height={70}
@@ -317,12 +313,22 @@ export default function SignInPage() {
     <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
       <style jsx global>{`
         @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(30px, -30px) scale(1.1); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          50% {
+            transform: translate(30px, -30px) scale(1.1);
+          }
         }
         @keyframes float-delayed {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-30px, 30px) scale(1.1); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          50% {
+            transform: translate(-30px, 30px) scale(1.1);
+          }
         }
         .animate-float {
           animation: float 20s ease-in-out infinite;
@@ -354,7 +360,10 @@ export default function SignInPage() {
           </div>
         </div>
 
-        <div className="bg-white shadow-2xl overflow-hidden" style={{ borderRadius: "40px" }}>
+        <div
+          className="bg-white shadow-2xl overflow-hidden"
+          style={{ borderRadius: "40px" }}
+        >
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-8">
@@ -390,7 +399,10 @@ export default function SignInPage() {
                 />
 
                 {msg && (
-                  <div className="p-3 bg-red-50 border border-red-200" style={{ borderRadius: "12px" }}>
+                  <div
+                    className="p-3 bg-red-50 border border-red-200"
+                    style={{ borderRadius: "12px" }}
+                  >
                     <p className="text-sm text-red-600">{msg}</p>
                   </div>
                 )}

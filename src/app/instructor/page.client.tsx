@@ -82,7 +82,7 @@ export default function InstructorClient() {
   const [assignErr, setAssignErr] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [selectedTrainees, setSelectedTrainees] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [traineesQ, setTraineesQ] = useState("");
   const [assignDiff, setAssignDiff] = useState<
@@ -91,7 +91,7 @@ export default function InstructorClient() {
   const [assignTags, setAssignTags] = useState<Set<string>>(new Set());
   const [assignQ, setAssignQ] = useState("");
   const [selectedCompetencies, setSelectedCompetencies] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // ----------- displayDr and initials -----------
@@ -159,7 +159,7 @@ export default function InstructorClient() {
         const { data: me, error: meErr } = await supabase
           .from("profiles")
           .select(
-            "id, email, first_name, last_name, role, hospital, country_name, country_code, avatar_path"
+            "id, email, first_name, last_name, role, hospital, country_name, country_code, avatar_path",
           )
           .eq("id", uid)
           .single<MeProfile>();
@@ -186,8 +186,8 @@ export default function InstructorClient() {
           (me?.last_name
             ? `Dr. ${me.last_name}`
             : me?.first_name
-            ? `Dr. ${me.first_name}`
-            : "") || "";
+              ? `Dr. ${me.first_name}`
+              : "") || "";
         if (!cancelled) setGreeting(drName);
 
         // Trainees
@@ -234,7 +234,7 @@ export default function InstructorClient() {
             if (r.pct >= 100) {
               completedById.set(
                 r.student_id,
-                (completedById.get(r.student_id) ?? 0) + 1
+                (completedById.get(r.student_id) ?? 0) + 1,
               );
             }
           });
@@ -253,7 +253,7 @@ export default function InstructorClient() {
           (assigns ?? []).forEach((r) => {
             assignedById.set(
               r.student_id,
-              (assignedById.get(r.student_id) ?? 0) + 1
+              (assignedById.get(r.student_id) ?? 0) + 1,
             );
           });
         }
@@ -320,7 +320,7 @@ export default function InstructorClient() {
             merged.length > 0
               ? Math.round(
                   merged.reduce((s, r) => s + (r.avgPct || 0), 0) /
-                    merged.length
+                    merged.length,
                 )
               : 0;
           setKpiAvgProgramScore(avgProg);
@@ -352,14 +352,19 @@ export default function InstructorClient() {
     (async () => {
       try {
         // No longer using compsErr/compsLoading for browse modal
-        const [{ data: comps, error: cErr }, { data: tagsData, error: tagsErr }] =
-          await Promise.all([
-            supabase
-              .from("competencies")
-              .select("id, name, difficulty, tags, position")
-              .order("position", { ascending: true, nullsFirst: false }),
-            supabase.from("tags").select("id, name").order("name", { ascending: true }),
-          ]);
+        const [
+          { data: comps, error: cErr },
+          { data: tagsData, error: tagsErr },
+        ] = await Promise.all([
+          supabase
+            .from("competencies")
+            .select("id, name, difficulty, tags, position")
+            .order("position", { ascending: true, nullsFirst: false }),
+          supabase
+            .from("tags")
+            .select("id, name")
+            .order("name", { ascending: true }),
+        ]);
         if (cErr) throw cErr;
         if (tagsErr) throw tagsErr;
 
@@ -395,7 +400,7 @@ export default function InstructorClient() {
     if (!q) return students;
     return students.filter(
       (s) =>
-        s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
+        s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q),
     );
   }, [studentsQ, students]);
 
@@ -408,7 +413,7 @@ export default function InstructorClient() {
     if (q) {
       list = list.filter(
         (s) =>
-          s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
+          s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q),
       );
     }
     return list;
@@ -420,7 +425,7 @@ export default function InstructorClient() {
 
     if (assignDiff !== "all") {
       list = list.filter(
-        (c) => (c.difficulty ?? "").toLowerCase() === assignDiff
+        (c) => (c.difficulty ?? "").toLowerCase() === assignDiff,
       );
     }
     if (assignTags.size > 0) {
@@ -546,7 +551,7 @@ export default function InstructorClient() {
             <div className="mt-4 flex items-center gap-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/APSC_Logo.png"
+                src="/sponsors/APSC_Logo.png"
                 alt="Asian Pacific Society of Cardiology logo"
                 className="h-20 w-auto object-contain"
               />
@@ -1005,12 +1010,12 @@ export default function InstructorClient() {
                                 "beginner"
                                   ? "bg-[color:var(--ok)] text-black"
                                   : (c.difficulty ?? "").toLowerCase() ===
-                                    "intermediate"
-                                  ? "bg-[color:var(--warn)] text-black"
-                                  : (c.difficulty ?? "").toLowerCase() ===
-                                    "expert"
-                                  ? "bg-[color:var(--err)] text-black"
-                                  : "bg-[var(--border)] text-[var(--foreground)]/70")
+                                      "intermediate"
+                                    ? "bg-[color:var(--warn)] text-black"
+                                    : (c.difficulty ?? "").toLowerCase() ===
+                                        "expert"
+                                      ? "bg-[color:var(--err)] text-black"
+                                      : "bg-[var(--border)] text-[var(--foreground)]/70")
                               }
                             >
                               {c.difficulty}
@@ -1130,12 +1135,10 @@ function FilterChip({
       onClick={onClick}
       onMouseEnter={(e) => {
         if (!active) {
-          (
-            e.currentTarget as HTMLButtonElement
-          ).style.background = `color-mix(in oklab, ${hoverBase} 12%, transparent)`;
-          (
-            e.currentTarget as HTMLButtonElement
-          ).style.borderColor = `color-mix(in oklab, ${hoverBase} 28%, transparent)`;
+          (e.currentTarget as HTMLButtonElement).style.background =
+            `color-mix(in oklab, ${hoverBase} 12%, transparent)`;
+          (e.currentTarget as HTMLButtonElement).style.borderColor =
+            `color-mix(in oklab, ${hoverBase} 28%, transparent)`;
         }
       }}
       onMouseLeave={(e) => {
@@ -1155,7 +1158,7 @@ function FilterChip({
       ].join(" ")}
       style={{
         borderColor: "var(--border)",
-        background: active ? color ?? "var(--field)" : "var(--surface)",
+        background: active ? (color ?? "var(--field)") : "var(--surface)",
         color: active ? "var(--foreground)" : "var(--foreground)",
       }}
     >
