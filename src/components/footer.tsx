@@ -11,7 +11,7 @@ export default function Footer() {
             Terms
           </a>
           <a
-            href="mailto:novruzoff@truecompetency.com"
+            href="mailto:contact@truecompetency.com"
             className="hover:opacity-80"
           >
             Contact

@@ -136,10 +136,10 @@ export default function PrivacyPage() {
           <br />
           Email:{" "}
           <a
-            href="mailto:novruzoff@truecompetency.com"
+            href="mailto:contact@truecompetency.com"
             className="text-[var(--accent)] underline"
           >
-            novruzoff@truecompetency.com
+            contact@truecompetency.com
           </a>
         </p>
       </section>
