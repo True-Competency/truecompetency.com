@@ -18,6 +18,9 @@ const ROLE_HOME: Record<UserRole, string> = {
   instructor: "/instructor",
   committee: "/committee",
 };
+const CONTACT_EMAIL =
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@truecompetency.com";
+const CONTACT_HREF = `mailto:${CONTACT_EMAIL}`;
 
 // ─── Auth gate ───────────────────────────────────────────────────────────────
 export default function RootPage({ stats }: { stats: LandingStats }) {
@@ -651,6 +654,9 @@ function Landing({
             <StatCounter value={stats.questions} label="Questions" />
             <StatCounter value={stats.countries} label="Countries" />
           </div>
+          <p className="mt-10 text-center text-sm italic tracking-[0.2em] text-gray-400">
+            and growing
+          </p>
         </div>
       </section>
 
@@ -1037,7 +1043,7 @@ function Landing({
             <p className="text-center text-sm text-gray-400 mt-10">
               Interested in partnering with True Competency?{" "}
               <a
-                href="mailto:contact@truecompetency.com"
+                href={CONTACT_HREF}
                 className="text-[#5170ff] font-medium hover:underline"
               >
                 Get in touch →
@@ -1069,7 +1075,7 @@ function Landing({
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
               <a
-                href="mailto:contact@truecompetency.com"
+                href={CONTACT_HREF}
                 className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-white transition-all hover:opacity-90 hover:shadow-xl"
                 style={{
                   background:
@@ -1086,14 +1092,8 @@ function Landing({
                     strokeLinejoin="round"
                   />
                 </svg>
-                contact@truecompetency.com
+                Contact us
               </a>
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-gray-700 border border-gray-200 hover:border-[#5170ff]/40 hover:text-[#5170ff] transition-all bg-white hover:shadow-lg"
-              >
-                Request Access
-              </Link>
             </div>
           </FadeIn>
         </div>
@@ -1134,7 +1134,7 @@ function Landing({
               Terms
             </Link>
             <a
-              href="mailto:support@truecompetency.com"
+              href={CONTACT_HREF}
               className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
             >
               Contact
