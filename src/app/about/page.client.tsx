@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Building2, Stethoscope, GraduationCap } from "lucide-react";
 
-type UserRole = "trainee" | "instructor" | "committee";
+type UserRole = "trainee" | "instructor" | "committee" | "admin";
 type Profile = { id: string; role: UserRole };
 type LandingStats = {
   competencies: number;
@@ -17,10 +18,13 @@ const ROLE_HOME: Record<UserRole, string> = {
   trainee: "/trainee",
   instructor: "/instructor",
   committee: "/committee",
+  admin: "/admin",
 };
 const CONTACT_EMAIL =
   process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@truecompetency.com";
 const CONTACT_HREF = `mailto:${CONTACT_EMAIL}`;
+
+const router = useRouter();
 
 // ─── Auth gate ───────────────────────────────────────────────────────────────
 export default function RootPage({ stats }: { stats: LandingStats }) {
@@ -47,7 +51,11 @@ export default function RootPage({ stats }: { stats: LandingStats }) {
           .select("id, role")
           .eq("id", uid)
           .single<Profile>();
-        if (prof && !cancelled) setDashUrl(ROLE_HOME[prof.role]);
+        if (prof && !cancelled) {
+          const url = ROLE_HOME[prof.role];
+          setDashUrl(url);
+          if (url) router.replace(url);
+        }
       } catch {
         /* ignore */
       } finally {

@@ -2,15 +2,18 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
-type UserRole = "trainee" | "instructor" | "committee";
+type UserRole = "trainee" | "instructor" | "committee" | "admin";
 type Profile = { id: string; role: UserRole };
-const ROLE_HOME: Record<Exclude<UserRole, "committee">, string> = {
+const ROLE_HOME: Record<UserRole, string> = {
   trainee: "/trainee",
   instructor: "/instructor",
+  committee: "/committee",
+  admin: "/admin",
 };
 
 const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
@@ -25,6 +28,7 @@ const diffTone = (level: string) => {
 };
 
 export default function RootPage() {
+  const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [dashUrl, setDashUrl] = useState<string | null>(null);
 
@@ -51,11 +55,11 @@ export default function RootPage() {
           .single<Profile>();
         if (perr) throw perr;
 
-        const home =
-          prof.role === "committee" ? "/committee" : ROLE_HOME[prof.role];
+        const home = ROLE_HOME[prof.role];
 
         if (!cancelled) {
           setDashUrl(home);
+          router.replace(home);
           setChecking(false);
         }
       } catch {
@@ -65,7 +69,7 @@ export default function RootPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   return <Landing checking={checking} dashUrl={dashUrl} />;
 }

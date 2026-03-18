@@ -15,6 +15,7 @@ const HIDDEN_EXACT_PATHS = new Set<string>([
   "/committee/review-queue/questions",
   "/committee/members",
   "/committee/tags",
+  "/admin",
   "/instructor",
   "/trainee",
 ]);
@@ -24,6 +25,7 @@ function shouldHide(pathname: string): boolean {
 
   // Hide on all committee sidebar pages.
   if (pathname.startsWith("/committee/")) return true;
+  if (pathname.startsWith("/admin/")) return true;
 
   return false;
 }
