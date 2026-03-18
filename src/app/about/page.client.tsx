@@ -24,10 +24,9 @@ const CONTACT_EMAIL =
   process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@truecompetency.com";
 const CONTACT_HREF = `mailto:${CONTACT_EMAIL}`;
 
-const router = useRouter();
-
 // ─── Auth gate ───────────────────────────────────────────────────────────────
 export default function RootPage({ stats }: { stats: LandingStats }) {
+  const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [dashUrl, setDashUrl] = useState<string | null>(null);
 
