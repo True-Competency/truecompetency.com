@@ -292,7 +292,7 @@ export default function SignInPage() {
         await ensureProfile(supabase);
         await supabase.auth.getSession();
         await new Promise((r) => setTimeout(r, 0));
-        router.replace(redirect || "/");
+        router.replace("/");
       }
     } catch (err: unknown) {
       if (typeof err === "object" && err !== null) {
