@@ -3,6 +3,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type UserRole = "trainee" | "instructor" | "committee";
@@ -12,13 +13,8 @@ const ROLE_HOME: Record<Exclude<UserRole, "committee">, string> = {
   instructor: "/instructor",
 };
 
-type HeroCta = {
-  href: string;
-  label: string;
-  disabled?: boolean;
-};
-const CONTACT_EMAIL =
-  process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@truecompetency.com";
+const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
+const CONTACT_HREF = CONTACT_EMAIL ? `mailto:${CONTACT_EMAIL}` : "#";
 
 const diffTone = (level: string) => {
   const key = level.toLowerCase();
@@ -81,55 +77,177 @@ function Landing({
   checking: boolean;
   dashUrl: string | null;
 }) {
-  const heroCta = dashUrl
-    ? { href: dashUrl, label: "Continue to Dashboard" }
-    : checking
-    ? { href: "#", label: "Checking session…", disabled: true }
-    : { href: "/signin", label: "Sign In" };
-  const contactHref = `mailto:${CONTACT_EMAIL}`;
-
   return (
     <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(102,126,234,0.25),_transparent_55%)]">
-      <div
-        aria-hidden
-        className="bg-grid absolute inset-0 opacity-60 dark:opacity-25"
-      />
       <div aria-hidden className="bg-noise absolute inset-0 opacity-[0.06]" />
       <div aria-hidden className="beams pointer-events-none absolute inset-0" />
+      <Nav dashUrl={dashUrl} checking={checking} />
       <main className="relative z-10 space-y-16 pb-16">
-        <HeroSection heroCta={heroCta} contactHref={contactHref} />
+        <HeroSection contactHref={CONTACT_HREF} />
         <HighlightsSection />
         <ProgressPreviewSection />
         <WorkflowSection />
       </main>
+      <footer className="border-t border-gray-100 bg-white py-10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-6 md:flex-row">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/TC_Logo.png"
+              alt="True Competency"
+              width={28}
+              height={28}
+              className="object-contain"
+            />
+            <span
+              className="text-sm font-semibold text-gray-800"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              True Competency
+            </span>
+          </div>
+          <p className="text-xs text-gray-400">
+            © {new Date().getFullYear()} True Competency. All rights reserved.
+          </p>
+          <div className="flex items-center gap-6">
+            <Link
+              href="/privacy"
+              className="text-xs text-gray-400 transition-colors hover:text-gray-700"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-xs text-gray-400 transition-colors hover:text-gray-700"
+            >
+              Terms
+            </Link>
+            <a
+              href={CONTACT_HREF}
+              className="text-xs text-gray-400 transition-colors hover:text-gray-700"
+            >
+              Contact
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-function HeroSection({
-  heroCta,
-  contactHref,
+function Nav({
+  dashUrl,
+  checking,
 }: {
-  heroCta: HeroCta;
-  contactHref: string;
+  dashUrl: string | null;
+  checking: boolean;
 }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <section className="mx-auto max-w-6xl px-6 pt-10 lg:pt-16">
+    <nav
+      className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+      style={{
+        background: scrolled ? "rgba(255,255,255,0.92)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(0,0,0,0.06)" : "none",
+        boxShadow: scrolled ? "0 4px 30px rgba(0,0,0,0.05)" : "none",
+      }}
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+        <div className="flex items-center gap-2.5">
+          <Image
+            src="/TC_Logo.png"
+            alt="True Competency"
+            width={36}
+            height={36}
+            className="object-contain"
+          />
+          <span
+            className="text-sm font-bold tracking-tight text-gray-900"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            True Competency
+          </span>
+        </div>
+
+        <div className="hidden md:flex items-center gap-3">
+          <Link
+            href="/signin"
+            className="px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            Sign In
+          </Link>
+          <Link
+            href={dashUrl ?? "/signup"}
+            className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, #5170ff 0%, #7b8fff 100%)",
+            }}
+          >
+            {checking ? "Loading…" : dashUrl ? "Dashboard" : "Get Started"}
+          </Link>
+        </div>
+
+        <button
+          className="p-2 md:hidden"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Toggle menu"
+        >
+          <div className="space-y-1.5">
+            <div
+              className={`h-0.5 w-6 bg-gray-800 transition-all ${menuOpen ? "translate-y-2 rotate-45" : ""}`}
+            />
+            <div
+              className={`h-0.5 w-6 bg-gray-800 transition-all ${menuOpen ? "opacity-0" : ""}`}
+            />
+            <div
+              className={`h-0.5 w-6 bg-gray-800 transition-all ${menuOpen ? "-translate-y-2 -rotate-45" : ""}`}
+            />
+          </div>
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div className="space-y-3 border-t border-gray-100 bg-white px-6 py-4 md:hidden">
+          <Link
+            href="/about"
+            className="block w-full text-left text-sm font-medium text-gray-700 py-2"
+          >
+            About
+          </Link>
+          <div className="flex gap-3 border-t border-gray-100 pt-2">
+            <Link
+              href="/signin"
+              className="flex-1 rounded-full border border-gray-200 py-2.5 text-center text-sm font-medium text-gray-600"
+            >
+              Sign In
+            </Link>
+            <Link
+              href={dashUrl ?? "/signup"}
+              className="flex-1 rounded-full py-2.5 text-center text-sm font-semibold text-white"
+              style={{ background: "#5170ff" }}
+            >
+              {checking ? "Loading…" : dashUrl ? "Dashboard" : "Get Started"}
+            </Link>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+function HeroSection({ contactHref }: { contactHref: string }) {
+  return (
+    <section className="mx-auto max-w-6xl px-6 pt-32 lg:pt-36">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_520px] items-center">
         <div>
-          <div className="flex items-center gap-3">
-            <Image
-              src="/TC_Logo.png"
-              alt="True Competency logo"
-              width={64}
-              height={64}
-              className="h-12 w-12 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.15)]"
-              priority
-            />
-            <span className="text-xs uppercase tracking-[0.35em] text-[var(--accent)]/85">
-              True Competency Platform
-            </span>
-          </div>
           <h1 className="mt-4 text-4xl md:text-5xl font-semibold leading-tight tracking-tight">
             Competency tracking built for real training programs
           </h1>
@@ -140,20 +258,18 @@ function HeroSection({
             and committees already use to steward patient-ready operators.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <a
-              href={heroCta.href}
-              aria-disabled={heroCta.disabled}
-              className={[
-                "inline-flex items-center justify-center rounded-2xl px-6 py-3 font-semibold text-white",
-                "bg-[var(--accent)] shadow-[0_12px_40px_color-mix(in_oklab,var(--accent)_35%,transparent)] hover:opacity-95 transition",
-                heroCta.disabled ? "pointer-events-none opacity-60" : "",
-              ].join(" ")}
+            <Link
+              href="/about"
+              className="rounded-full border border-gray-200 bg-[var(--surface)] px-5 py-3 text-sm font-medium text-gray-700 transition-all hover:border-[#5170ff]/40 hover:text-[#5170ff] hover:shadow-lg"
             >
-              {heroCta.label}
-            </a>
+              About Us
+            </Link>
             <a
               href={contactHref}
-              className="rounded-2xl border border-[var(--accent)] px-6 py-3 font-semibold text-[var(--accent)] bg-[var(--surface)] hover:bg-[var(--field)]/70 transition"
+              className="rounded-full px-5 py-3 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-lg"
+              style={{
+                background: "linear-gradient(135deg, #5170ff 0%, #7b8fff 100%)",
+              }}
             >
               Contact Us
             </a>
@@ -433,13 +549,6 @@ function WorkflowSection() {
 function GlowingLogoCard() {
   return (
     <div className="relative mx-auto w-full max-w-[520px] grid place-items-center">
-      <div
-        aria-hidden
-        className="absolute -inset-10 blur-3xl opacity-70 logo-halo"
-      />
-      <div aria-hidden className="absolute -inset-2 rotate-12 opacity-35">
-        <div className="logo-beam" />
-      </div>
       <Image
         src="/TC_Logo.png"
         alt="True Competency"
@@ -447,14 +556,6 @@ function GlowingLogoCard() {
         height={260}
         className="relative z-[1] object-contain drop-shadow-[0_30px_90px_color-mix(in_oklab,var(--accent)_45%,transparent)]"
         priority
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[2rem] animate-pulse-glow"
-        style={{
-          filter:
-            "drop-shadow(0 0 80px color-mix(in oklab, var(--accent) 35%, transparent))",
-        }}
       />
     </div>
   );

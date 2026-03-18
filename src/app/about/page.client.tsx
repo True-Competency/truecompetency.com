@@ -62,38 +62,6 @@ export default function RootPage({ stats }: { stats: LandingStats }) {
   return <Landing checking={checking} dashUrl={dashUrl} stats={stats} />;
 }
 
-// ─── Animated counter hook ───────────────────────────────────────────────────
-function useCountUp(target: number, duration = 1800) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const start = performance.now();
-          const tick = (now: number) => {
-            const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setCount(Math.floor(eased * target));
-            if (progress < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target, duration]);
-
-  return { count, ref };
-}
-
 // ─── Fade-in on scroll ───────────────────────────────────────────────────────
 function FadeIn({
   children,
@@ -134,127 +102,6 @@ function FadeIn({
       }}
     >
       {children}
-    </div>
-  );
-}
-
-// ─── Stat counter ────────────────────────────────────────────────────────────
-function StatCounter({
-  value,
-  label,
-  suffix = "",
-}: {
-  value: number;
-  label: string;
-  suffix?: string;
-}) {
-  const { count, ref } = useCountUp(value);
-  return (
-    <div className="text-center">
-      <div className="flex items-end justify-center gap-0.5">
-        <span
-          ref={ref}
-          className="text-5xl font-bold tracking-tight text-gray-900"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          {count}
-        </span>
-        <span className="text-3xl font-bold text-[#5170ff] mb-1">{suffix}</span>
-      </div>
-      <p className="mt-2 text-sm font-medium uppercase tracking-widest text-gray-500">
-        {label}
-      </p>
-    </div>
-  );
-}
-
-// ─── Founder card ────────────────────────────────────────────────────────────
-function FounderCard({
-  name,
-  role,
-  bio,
-  src,
-  imageAlt,
-  featured = false,
-}: {
-  name: string;
-  role: string;
-  bio: string;
-  src: string;
-  imageAlt?: string;
-  featured?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [imageError, setImageError] = useState(false);
-
-  return (
-    <div
-      className="relative overflow-hidden rounded-3xl cursor-pointer"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        transform: hovered ? "scale(1.03)" : "scale(1)",
-        transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-        boxShadow: featured
-          ? hovered
-            ? "0 40px 100px rgba(81, 112, 255, 0.35)"
-            : "0 20px 60px rgba(81, 112, 255, 0.2)"
-          : hovered
-            ? "0 30px 80px rgba(81, 112, 255, 0.2)"
-            : "0 8px 30px rgba(0,0,0,0.08)",
-        border: featured ? "2px solid rgba(81,112,255,0.2)" : "none",
-      }}
-    >
-      {/* Photo placeholder */}
-      <div
-        className={`${featured ? "aspect-[3/5]" : "aspect-[3/4]"} relative bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center overflow-hidden`}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-[#5170ff]/10 to-transparent" />
-        {!imageError ? (
-          <Image
-            src={src}
-            alt={imageAlt ?? name}
-            width={400}
-            height={600}
-            className="w-full h-full object-cover object-top"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300 px-6 text-center text-sm font-medium text-slate-500">
-            Photo coming soon
-          </div>
-        )}
-        {/* Overlay on hover */}
-        <div
-          className="absolute inset-0 flex flex-col justify-end p-6"
-          style={{
-            background:
-              "linear-gradient(to top, rgba(10,10,40,0.92) 0%, rgba(10,10,40,0.4) 50%, transparent 100%)",
-            opacity: hovered ? 1 : 0,
-            transition: "opacity 0.35s ease",
-          }}
-        >
-          <p
-            className="text-white/90 text-sm leading-relaxed"
-            style={{
-              transform: hovered ? "translateY(0)" : "translateY(16px)",
-              transition: "transform 0.4s ease",
-            }}
-          >
-            {bio}
-          </p>
-        </div>
-      </div>
-      {/* Name bar */}
-      <div className="bg-white px-5 py-4 border-t border-gray-100">
-        <p
-          className="font-semibold text-gray-900"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          {name}
-        </p>
-        <p className="text-sm text-[#5170ff] font-medium mt-0.5">{role}</p>
-      </div>
     </div>
   );
 }
@@ -408,20 +255,19 @@ function Nav({
 
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-8">
-          {[
-            ["About", "about"],
-            ["Team", "team"],
-            ["Partners", "partners"],
-            ["Contact", "contact"],
-          ].map(([label, id]) => (
-            <button
-              key={id}
-              onClick={() => scrollTo(id)}
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              {label}
-            </button>
-          ))}
+          <Link
+            href="/"
+            className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Home
+          </Link>
+          <button
+            onClick={() => scrollTo("about")}
+            className="relative text-sm font-medium text-gray-900 transition-colors"
+          >
+            About
+            <span className="absolute -bottom-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[#5170ff]" />
+          </button>
         </div>
 
         {/* CTA */}
@@ -465,20 +311,18 @@ function Nav({
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 px-6 py-4 space-y-3">
-          {[
-            ["About", "about"],
-            ["Team", "team"],
-            ["Partners", "partners"],
-            ["Contact", "contact"],
-          ].map(([label, id]) => (
-            <button
-              key={id}
-              onClick={() => scrollTo(id)}
-              className="block w-full text-left text-sm font-medium text-gray-700 py-2"
-            >
-              {label}
-            </button>
-          ))}
+          <Link
+            href="/"
+            className="block w-full text-left text-sm font-medium text-gray-700 py-2"
+          >
+            Home
+          </Link>
+          <button
+            onClick={() => scrollTo("about")}
+            className="block w-full text-left text-sm font-medium text-[#5170ff] py-2"
+          >
+            About
+          </button>
           <div className="pt-2 border-t border-gray-100 flex gap-3">
             <Link
               href="/signin"
@@ -504,14 +348,15 @@ function Nav({
 function Landing({
   checking,
   dashUrl,
-  stats,
+  stats: _stats,
 }: {
   checking: boolean;
   dashUrl: string | null;
   stats: LandingStats;
 }) {
+  void _stats;
+
   // Parallax mouse effect for hero
-  const heroRef = useRef<HTMLDivElement>(null);
   const blobRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -541,123 +386,6 @@ function Landing({
       `}</style>
 
       <Nav dashUrl={dashUrl} checking={checking} />
-
-      {/* ── HERO ── */}
-      <section
-        ref={heroRef}
-        className="relative pt-32 pb-24 overflow-hidden hero-gradient"
-      >
-        {/* Animated blob */}
-        <div
-          ref={blobRef}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(81,112,255,0.08) 0%, transparent 70%)",
-            transition: "transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-          }}
-        />
-
-        <div className="relative mx-auto max-w-5xl px-6 text-center">
-          <FadeIn delay={100}>
-            <h1
-              className="text-5xl md:text-7xl font-bold leading-tight tracking-tight text-gray-900"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              <span className="relative inline-block">
-                <span className="relative z-10" style={{ color: "#5170ff" }}>
-                  One platform.
-                </span>
-                <svg
-                  className="absolute -bottom-2 left-0 w-full"
-                  height="8"
-                  viewBox="0 0 200 8"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M0 6 Q50 0 100 4 Q150 8 200 2"
-                    stroke="#5170ff"
-                    strokeWidth="2.5"
-                    fill="none"
-                    strokeLinecap="round"
-                    opacity="0.4"
-                  />
-                </svg>
-              </span>{" "}
-              Three roles. One Standard of Readiness.
-            </h1>
-          </FadeIn>
-
-          <FadeIn delay={200}>
-            <p className="mt-6 text-lg md:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed font-light">
-              A structured platform for committee-driven competency management,
-              assessment, and trainee progress tracking — built for modern
-              clinical training programs.
-            </p>
-          </FadeIn>
-
-          <FadeIn delay={300}>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href={dashUrl ?? "/signup"}
-                className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105 active:scale-95"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #5170ff 0%, #7b8fff 100%)",
-                  boxShadow: "0 20px 60px rgba(81,112,255,0.35)",
-                }}
-              >
-                {checking
-                  ? "Loading…"
-                  : dashUrl
-                    ? "Continue to Dashboard"
-                    : "Get Started"}
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 12h14M12 5l7 7-7 7"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("about")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-semibold text-gray-700 border border-gray-200 bg-white hover:border-[#5170ff]/40 hover:text-[#5170ff] transition-all hover:shadow-lg"
-              >
-                Learn More
-              </button>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      <div className="section-divider mx-auto max-w-4xl" />
-
-      {/* ── STATS ── */}
-      <section className="py-20 bg-white">
-        <div className="mx-auto max-w-4xl px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
-            <StatCounter value={stats.competencies} label="Competencies" />
-            <StatCounter
-              value={stats.committeeMembers}
-              label="Committee Members"
-            />
-            <StatCounter value={stats.questions} label="Questions" />
-            <StatCounter value={stats.countries} label="Countries" />
-          </div>
-          <p className="mt-10 text-center text-sm italic tracking-[0.2em] text-gray-400">
-            and growing
-          </p>
-        </div>
-      </section>
-
-      <div className="section-divider mx-auto max-w-4xl" />
 
       {/* ── PROBLEM ── */}
       <section className="py-24 bg-white overflow-hidden">
@@ -1018,7 +746,8 @@ function Landing({
         </div>
       </section>
 
-      {/* ── TEAM ── */}
+      {/*
+      ── TEAM ──
       <section id="team" className="py-24 bg-white">
         <div className="mx-auto max-w-6xl px-6">
           <FadeIn>
@@ -1076,6 +805,7 @@ function Landing({
       </section>
 
       <div className="section-divider mx-auto max-w-4xl" />
+      */}
 
       {/* ── PARTNERS ── */}
       <section id="partners" className="py-24 bg-gray-50/50">

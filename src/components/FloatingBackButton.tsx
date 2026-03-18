@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const HIDDEN_EXACT_PATHS = new Set<string>([
   "/",
+  "/about",
   "/signin",
   "/signup",
   "/committee",
