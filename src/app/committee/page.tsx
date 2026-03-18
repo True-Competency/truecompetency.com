@@ -14,6 +14,7 @@ import {
   Users,
   FileText,
   Vote,
+  GraduationCap,
 } from "lucide-react";
 
 type Profile = {
@@ -21,6 +22,7 @@ type Profile = {
   full_name: string | null;
   first_name: string | null;
   last_name: string | null;
+  committee_role: string | null;
 };
 
 type RecentProposal = {
@@ -74,7 +76,7 @@ export default function CommitteeDashboard() {
         if (u.user?.id) {
           const { data: prof } = await supabase
             .from("profiles")
-            .select("id, full_name, first_name, last_name")
+            .select("id, full_name, first_name, last_name, committee_role")
             .eq("id", u.user.id)
             .maybeSingle<Profile>();
           if (prof && !cancelled) setProfile(prof);
@@ -206,6 +208,8 @@ export default function CommitteeDashboard() {
       [profile.first_name, profile.last_name].filter(Boolean).join(" ");
     return name ? `Welcome Back, Dr. ${name}` : "Welcome Back";
   }, [profile]);
+
+  const isChair = profile?.committee_role === "chief_editor";
 
   const coveragePct =
     stats && stats.totalCompetencies > 0
@@ -554,8 +558,8 @@ export default function CommitteeDashboard() {
       </div>
 
       {/* ── Quick actions ────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4">
+      <div className="space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
           Quick Actions
         </h2>
         <div className="flex flex-wrap gap-3">
@@ -589,6 +593,34 @@ export default function CommitteeDashboard() {
             View Members
           </Link>
         </div>
+        {isChair && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-[var(--border)]" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
+                <ShieldCheck size={11} />
+                Chair Only
+              </span>
+              <div className="h-px flex-1 bg-[var(--border)]" />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/trainee"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+              >
+                <GraduationCap size={15} />
+                Trainee Dashboard
+              </Link>
+              <Link
+                href="/instructor"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+              >
+                <Users size={15} />
+                Instructor Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

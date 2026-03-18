@@ -14,7 +14,7 @@ export default async function InstructorPage() {
   // Role/Admin gate: allow instructor or app_admin
   const { data: prof } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, committee_role")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -28,7 +28,10 @@ export default async function InstructorPage() {
     isAdmin = !!adminRow;
   }
 
-  if (!isAdmin && prof?.role !== "instructor") {
+  const isChair =
+    prof?.role === "committee" && prof?.committee_role === "chief_editor";
+
+  if (!isAdmin && prof?.role !== "instructor" && !isChair) {
     redirect("/403");
   }
 

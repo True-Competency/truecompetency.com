@@ -101,6 +101,21 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // Chairs can preview trainee and instructor dashboards
+  if (role === "committee") {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("committee_role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (
+      prof?.committee_role === "chief_editor" &&
+      (pathname.startsWith("/trainee") || pathname.startsWith("/instructor"))
+    ) {
+      return res;
+    }
+  }
+
   // Root path → send to their home
   if (pathname === "/") {
     const url = req.nextUrl.clone();
