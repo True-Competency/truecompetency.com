@@ -2,8 +2,7 @@ name: Supa-backup
 
 on:
   schedule:
-    - cron: "0 7 * * *" # 3am Toronto during EDT
-    - cron: "0 8 * * *" # 3am Toronto during EST
+    - cron: "0 8 * * *" # 3am Toronto (EST, UTC-5) — adjust to "0 7 * * *" in summer (EDT, UTC-4)
   workflow_dispatch:
     inputs:
       force:
@@ -18,7 +17,6 @@ jobs:
       contents: write
 
     env:
-      # --- REQUIRED secrets from the repo ---
       SUPABASE_POOLER_HOST: ${{ secrets.SUPABASE_POOLER_HOST }}
       SUPABASE_POOLER_PORT: ${{ secrets.SUPABASE_POOLER_PORT }}
       SUPABASE_DB: ${{ secrets.SUPABASE_DB_NAME }}
@@ -36,29 +34,10 @@ jobs:
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt-get update -y
           sudo apt-get install -y postgresql-client-17
-          # Ensure pg_dump points to v17
           sudo ln -sf /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo ln -sf /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
 
-      - name: Only run at 3:00 AM Toronto unless forced
-        id: guard
-        shell: bash
-        run: |
-          FORCE="${{ github.event.inputs.force }}"
-          HOUR_TORONTO=$(TZ=America/Toronto date +%H)
-          if [ "$FORCE" = "true" ] || [ "$FORCE" = "True" ] || [ "$FORCE" = "1" ]; then
-            echo "Forced run requested. Proceeding."
-            echo "run_backup=true" >> "$GITHUB_OUTPUT"
-          elif [ "$HOUR_TORONTO" = "03" ]; then
-            echo "It's 3am in America/Toronto. Proceeding."
-            echo "run_backup=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Not 3am in America/Toronto (it's ${HOUR_TORONTO}:00). Skipping."
-            echo "run_backup=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Build connection string (IPv4 pooler)
-        if: steps.guard.outputs.run_backup == 'true'
         id: conn
         shell: bash
         run: |
@@ -76,7 +55,6 @@ jobs:
           echo "USER=${SUPABASE_USER}" >> "$GITHUB_OUTPUT"
 
       - name: Create dated backup folder
-        if: steps.guard.outputs.run_backup == 'true'
         id: prep
         shell: bash
         run: |
@@ -87,7 +65,6 @@ jobs:
           echo "OUTDIR=$OUTDIR" >> "$GITHUB_OUTPUT"
 
       - name: Dump SCHEMA (schema.sql)
-        if: steps.guard.outputs.run_backup == 'true'
         env:
           DATABASE_URL: ${{ steps.conn.outputs.CONNSTR }}
         run: |
@@ -95,7 +72,6 @@ jobs:
             "$DATABASE_URL" > "${{ steps.prep.outputs.OUTDIR }}/schema.sql"
 
       - name: Dump DATA (data.sql)
-        if: steps.guard.outputs.run_backup == 'true'
         env:
           DATABASE_URL: ${{ steps.conn.outputs.CONNSTR }}
         run: |
@@ -103,7 +79,6 @@ jobs:
             "$DATABASE_URL" > "${{ steps.prep.outputs.OUTDIR }}/data.sql"
 
       - name: Dump ROLES (roles.sql) — best effort
-        if: steps.guard.outputs.run_backup == 'true'
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
@@ -117,12 +92,10 @@ jobs:
             }
 
       - name: List backup files
-        if: steps.guard.outputs.run_backup == 'true'
         run: ls -lh "${{ steps.prep.outputs.OUTDIR }}"
 
       - name: Commit backups to repo
-        if: steps.guard.outputs.run_backup == 'true'
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: "Supabase backup @ ${{ steps.prep.outputs.DATESTAMP }}"
+          commit_message: "chore(backup): Supabase backup @ ${{ steps.prep.outputs.DATESTAMP }}"
           file_pattern: ${{ steps.prep.outputs.OUTDIR }}/*
