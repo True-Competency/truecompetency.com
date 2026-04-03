@@ -1,37 +1,54 @@
 // src/app/trainee/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Building2, MapPin } from "lucide-react";
-import { useTheme } from "next-themes";
 import ReactCountryFlag from "react-country-flag";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+} from "recharts";
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+  Target,
+  Trophy,
+} from "lucide-react";
 
-/* ---------- types ---------- */
-type Role = "trainee" | "instructor" | "committee" | "student" | "doctor";
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 type Profile = {
   id: string;
-  role: Role;
+  role: string;
   first_name: string | null;
   last_name: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  university?: string | null;
-  hospital?: string | null;
-  country_name?: string | null;
-  avatar_path?: string | null;
+  full_name: string | null;
+  email: string | null;
 };
 
-type Competency = {
+type ProgressRow = {
+  competency_id: string;
+  pct: number;
+};
+
+type AssignmentRow = {
+  competency_id: string;
+};
+
+type CompetencyRow = {
   id: string;
-  name: string | null;
-  difficulty: string | null; // beginner | intermediate | expert
-  tags: string[] | null;
-  position?: number | null;
-  test_question?: string | null;
-  created_at?: string | null;
+  difficulty: string | null;
+  tags: string[] | null; // UUID[] from DB
 };
 
 type TagRow = {
@@ -39,22 +56,14 @@ type TagRow = {
   name: string;
 };
 
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
+type AnswerRow = {
+  is_correct: boolean;
+  answered_at: string;
 };
 
-type ProgressRow = {
+type RankRow = {
   student_id: string;
-  competency_id: string;
-  total_questions: number;
-  answered_questions: number;
   pct: number;
-};
-
-type Assignment = {
-  student_id: string;
-  competency_id: string;
-  assigned_at?: string;
 };
 
 type LeaderboardProgressRow = {
@@ -67,7 +76,7 @@ type LeaderboardProgressRow = {
     last_name: string | null;
     country_name: string | null;
     country_code: string | null;
-    role: Role | null;
+    role: string | null;
   } | null;
 };
 
@@ -85,63 +94,55 @@ type TraineeLeaderboardEntry = {
   completed: number;
 };
 
-type TagLeaderboardEntry = {
-  tag: string;
-  completed: number;
-};
+// Recharts data shapes
+type ActivityPoint = { date: string; answers: number };
+type TagBar = { tag: string; count: number };
 
-const NOT_SPECIFIED_COUNTRY_LABEL = "Not specified";
+// ── Difficulty bucket helper ───────────────────────────────────────────────────
 
-/* ---------- page ---------- */
+type DiffBucket = "beginner" | "intermediate" | "expert";
+
+function toBucket(raw: string | null): DiffBucket | null {
+  const k = (raw ?? "").toLowerCase();
+  if (k === "beginner" || k === "intermediate" || k === "expert") return k;
+  return null;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function TraineeDashboard() {
   const router = useRouter();
-  const { resolvedTheme } = useTheme();
-  const tcipLogoSrc =
-    resolvedTheme === "dark" ? "/TCIP_White_Logo.png" : "/TCIP_Black_Logo.png";
 
-  // auth/profile
+  // Auth + profile
   const [me, setMe] = useState<Profile | null>(null);
-  const [greetingName, setGreetingName] = useState<string>("");
 
-  // data
-  const [allComps, setAllComps] = useState<Competency[]>([]);
-  const [tagOptions, setTagOptions] = useState<string[]>([]);
-  const [assignments, setAssignments] = useState<Set<string>>(new Set()); // enrolled ids
-  const [progressByComp, setProgressByComp] = useState<
-    Map<string, ProgressRow>
-  >(new Map());
+  // Core data
+  const [assignments, setAssignments] = useState<Set<string>>(new Set());
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [competencies, setCompetencies] = useState<CompetencyRow[]>([]);
+
+  // New stats data
+  const [answers, setAnswers] = useState<AnswerRow[]>([]);
+  const [myRank, setMyRank] = useState<number | null>(null);
+  const [totalTrainees, setTotalTrainees] = useState<number>(0);
+  const [tagNames, setTagNames] = useState<Map<string, string>>(new Map()); // uuid -> name
+
+  // Leaderboards
   const [countryLeaderboard, setCountryLeaderboard] = useState<
     CountryLeaderboardEntry[]
   >([]);
   const [traineeLeaderboard, setTraineeLeaderboard] = useState<
     TraineeLeaderboardEntry[]
   >([]);
-  const [tagLeaderboard, setTagLeaderboard] = useState<TagLeaderboardEntry[]>(
-    [],
-  );
 
-  // ui
+  // UI
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // filters (main page)
-  const [diffFilter, setDiffFilter] = useState<
-    "all" | "beginner" | "intermediate" | "expert"
-  >("all");
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const [searchQ, setSearchQ] = useState("");
+  // ── Single parallel fetch — everything in one round trip ────────────────────
 
-  // enroll modal state + filters
-  const [showEnrollModal, setShowEnrollModal] = useState(false);
-  const [diffFilterEnroll, setDiffFilterEnroll] = useState<
-    "all" | "beginner" | "intermediate" | "expert"
-  >("all");
-  const [selectedTagsEnroll, setSelectedTagsEnroll] = useState<Set<string>>(
-    new Set(),
-  );
-  const [searchQEnroll, setSearchQEnroll] = useState("");
-
-  /* ---------- load ---------- */
   useEffect(() => {
     let cancelled = false;
 
@@ -150,7 +151,7 @@ export default function TraineeDashboard() {
       setErr(null);
 
       try {
-        // session
+        // Verify session
         const { data: userRes, error: getUserErr } =
           await supabase.auth.getUser();
         if (getUserErr) throw getUserErr;
@@ -160,100 +161,137 @@ export default function TraineeDashboard() {
           return;
         }
 
-        // profile (for greeting + id)
+        // Profile first (need uid to scope all subsequent queries)
         const { data: prof, error: profErr } = await supabase
           .from("profiles")
-          .select(
-            "id, role, first_name, last_name, full_name, email, university, hospital, country_name, avatar_path",
-          )
+          .select("id, role, first_name, last_name, full_name, email")
           .eq("id", uid)
           .single<Profile>();
         if (profErr) throw profErr;
         if (cancelled) return;
-
         setMe(prof);
-        const name = (
-          prof.full_name || `${prof.first_name ?? ""} ${prof.last_name ?? ""}`
-        ).trim();
-        setGreetingName(name || prof.email || "there");
 
-        // all competencies
+        // All 7 queries fire in parallel — no sequential waterfalls
         const [
-          { data: comps, error: compsErr },
-          { data: tagsData, error: tagsErr },
+          { data: assigns, error: aErr },
+          { data: progress, error: pErr },
+          { data: comps, error: cErr },
+          { data: tagsData, error: tErr },
+          { data: myAnswers, error: ansErr },
+          { data: leaderboardRows, error: lErr },
+          { data: allProgress, error: apErr },
         ] = await Promise.all([
+          // My enrolled competency IDs
+          supabase
+            .from("competency_assignments")
+            .select("competency_id")
+            .eq("student_id", uid)
+            .returns<AssignmentRow[]>(),
+
+          // My progress per competency
+          supabase
+            .from("student_competency_progress")
+            .select("competency_id, pct")
+            .eq("student_id", uid)
+            .returns<ProgressRow[]>(),
+
+          // All competencies — id, difficulty, tags UUID[]
           supabase
             .from("competencies")
-            .select(
-              "id, name, difficulty, tags, position, test_question, created_at",
-            )
-            .order("position", { ascending: true, nullsFirst: false }),
+            .select("id, difficulty, tags")
+            .returns<CompetencyRow[]>(),
+
+          // Tag uuid -> name lookup table
           supabase
             .from("tags")
             .select("id, name")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+            .returns<TagRow[]>(),
+
+          // My answers — last 30 days only to keep payload small
+          supabase
+            .from("student_answers")
+            .select("is_correct, answered_at")
+            .eq("student_id", uid)
+            .gte(
+              "answered_at",
+              new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            )
+            .returns<AnswerRow[]>(),
+
+          // Global leaderboard — trainees with any 100% competency
+          supabase
+            .from("student_competency_progress")
+            .select(
+              "student_id, competency_id, pct, profiles!inner(full_name, first_name, last_name, country_name, country_code, role)",
+            )
+            .gte("pct", 100)
+            .eq("profiles.role", "trainee")
+            .returns<LeaderboardProgressRow[]>(),
+
+          // All completed rows across all trainees — for rank calculation
+          supabase
+            .from("student_competency_progress")
+            .select("student_id, pct")
+            .gte("pct", 100)
+            .returns<RankRow[]>(),
         ]);
-        if (compsErr) throw compsErr;
-        if (tagsErr) throw tagsErr;
+
+        if (aErr) throw aErr;
+        if (pErr) throw pErr;
+        if (cErr) throw cErr;
+        if (tErr) throw tErr;
+        if (ansErr) throw ansErr;
+        if (lErr) throw lErr;
+        if (apErr) throw apErr;
         if (cancelled) return;
 
-        const tagNameById = new Map(
-          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
-        );
-        const sorted = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
-          ...c,
-          tags: (c.tags ?? [])
-            .map((id) => tagNameById.get(id))
-            .filter((v): v is string => Boolean(v)),
-        }));
-        setAllComps(sorted);
-        setTagOptions(((tagsData ?? []) as TagRow[]).map((t) => t.name));
-        const compTagLookup = new Map<string, string[]>();
-        sorted.forEach((c) => {
-          compTagLookup.set(
-            c.id,
-            (c.tags ?? []).map((t) => t.trim()).filter(Boolean),
-          );
-        });
-
-        // my assignments (enrolled competencies)
-        const { data: assigns, error: aErr } = await supabase
-          .from("competency_assignments")
-          .select("competency_id")
-          .eq("student_id", prof.id)
-          .returns<Assignment[]>();
-        if (aErr) throw aErr;
+        // ── Process core data ───────────────────────────────────────────────────
 
         const enrolled = new Set<string>(
           (assigns ?? []).map((r) => r.competency_id),
         );
         setAssignments(enrolled);
 
-        // my progress
-        const { data: progress, error: pErr } = await supabase
-          .from("student_competency_progress")
-          .select(
-            "student_id, competency_id, total_questions, answered_questions, pct",
-          )
-          .eq("student_id", prof.id)
-          .returns<ProgressRow[]>();
-        if (pErr) throw pErr;
+        const pMap = new Map<string, number>();
+        (progress ?? []).forEach((r) => pMap.set(r.competency_id, r.pct));
+        setProgressMap(pMap);
 
-        const pMap = new Map<string, ProgressRow>();
-        (progress ?? []).forEach((r) => pMap.set(r.competency_id, r));
-        setProgressByComp(pMap);
+        setCompetencies(comps ?? []);
 
-        // global leaderboards
-        const { data: leaderboardRows, error: leaderboardErr } = await supabase
-          .from("student_competency_progress")
-          .select(
-            "student_id, competency_id, pct, profiles!inner(full_name, first_name, last_name, country_name, country_code, role)",
-          )
-          .gte("pct", 100)
-          .eq("profiles.role", "trainee")
-          .returns<LeaderboardProgressRow[]>();
-        if (leaderboardErr) throw leaderboardErr;
+        // Build tag uuid -> name map
+        const tagMap = new Map<string, string>(
+          ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
+        );
+        setTagNames(tagMap);
 
+        setAnswers(myAnswers ?? []);
+
+        // ── Compute rank ────────────────────────────────────────────────────────
+        // Count completed competencies per trainee, rank current user
+        const completedPerTrainee = new Map<string, number>();
+        (allProgress ?? []).forEach((r: RankRow) => {
+          if (!r.student_id) return;
+          completedPerTrainee.set(
+            r.student_id,
+            (completedPerTrainee.get(r.student_id) ?? 0) + 1,
+          );
+        });
+
+        const myCompleted = completedPerTrainee.get(uid) ?? 0;
+        const total = completedPerTrainee.size;
+        setTotalTrainees(total);
+
+        // Rank = trainees with MORE completions + 1
+        const rank =
+          Array.from(completedPerTrainee.values()).filter(
+            (v) => v > myCompleted,
+          ).length + 1;
+        setMyRank(total > 0 ? rank : null);
+
+        // ── Build leaderboards ──────────────────────────────────────────────────
+
+        const NOT_SPECIFIED = "Not specified";
         const countryMap = new Map<
           string,
           { name: string; code: string | null; count: number }
@@ -268,22 +306,18 @@ export default function TraineeDashboard() {
             count: number;
           }
         >();
-        const tagMap = new Map<string, { label: string; count: number }>();
 
         (leaderboardRows ?? []).forEach((row) => {
-          const profile = row.profiles;
-          if (!profile) return;
-          const rawCountry = (profile.country_name ?? "").trim();
-          const hasCountryName = rawCountry.length > 0;
-          const countryName = hasCountryName
-            ? rawCountry
-            : NOT_SPECIFIED_COUNTRY_LABEL;
-          const countryKey = hasCountryName
-            ? rawCountry.toLowerCase()
-            : NOT_SPECIFIED_COUNTRY_LABEL.toLowerCase();
+          const p = row.profiles;
+          if (!p) return;
+
+          const rawCountry = (p.country_name ?? "").trim();
+          const hasCountry = rawCountry.length > 0;
+          const countryName = hasCountry ? rawCountry : NOT_SPECIFIED;
+          const countryKey = countryName.toLowerCase();
           const code =
-            hasCountryName && profile.country_code
-              ? profile.country_code.slice(0, 2).toUpperCase()
+            hasCountry && p.country_code
+              ? p.country_code.slice(0, 2).toUpperCase()
               : null;
 
           const cEntry = countryMap.get(countryKey);
@@ -293,78 +327,46 @@ export default function TraineeDashboard() {
 
           const studentId = row.student_id;
           if (studentId) {
-            const displayName =
-              (
-                profile.full_name ||
-                `${profile.first_name ?? ""} ${profile.last_name ?? ""}` ||
-                ""
-              ).trim() || "Trainee";
+            const name =
+              p.full_name ||
+              `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ||
+              "Trainee";
             const tEntry = traineeMap.get(studentId);
             if (tEntry) tEntry.count += 1;
             else
               traineeMap.set(studentId, {
                 id: studentId,
-                name: displayName,
-                country: hasCountryName ? profile.country_name : null,
+                name,
+                country: hasCountry ? rawCountry : null,
                 code,
                 count: 1,
               });
           }
-
-          const compId = row.competency_id;
-          if (compId) {
-            const tags = compTagLookup.get(compId) ?? [];
-            tags.forEach((tag) => {
-              const clean = tag.trim();
-              if (!clean) return;
-              const key = clean.toLowerCase();
-              const label = clean.startsWith("#") ? clean : `#${clean}`;
-              const existing = tagMap.get(key);
-              if (existing) existing.count += 1;
-              else tagMap.set(key, { label, count: 1 });
-            });
-          }
         });
 
-        const countryLeaderboardList = Array.from(countryMap.values())
-          .sort((a, b) => {
-            if (b.count !== a.count) return b.count - a.count;
-            return a.name.localeCompare(b.name);
-          })
-          .slice(0, 5)
-          .map((entry) => ({
-            country: entry.name,
-            code: entry.code,
-            completed: entry.count,
-          }));
-        setCountryLeaderboard(countryLeaderboardList);
+        setCountryLeaderboard(
+          Array.from(countryMap.values())
+            .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+            .slice(0, 5)
+            .map((e) => ({
+              country: e.name,
+              code: e.code,
+              completed: e.count,
+            })),
+        );
 
-        const traineeLeaderboardList = Array.from(traineeMap.values())
-          .sort((a, b) => {
-            if (b.count !== a.count) return b.count - a.count;
-            return a.name.localeCompare(b.name);
-          })
-          .slice(0, 5)
-          .map((entry) => ({
-            id: entry.id,
-            name: entry.name,
-            country: entry.country,
-            code: entry.code,
-            completed: entry.count,
-          }));
-        setTraineeLeaderboard(traineeLeaderboardList);
-
-        const tagLeaderboardList = Array.from(tagMap.values())
-          .sort((a, b) => {
-            if (b.count !== a.count) return b.count - a.count;
-            return a.label.localeCompare(b.label);
-          })
-          .slice(0, 5)
-          .map((entry) => ({
-            tag: entry.label,
-            completed: entry.count,
-          }));
-        setTagLeaderboard(tagLeaderboardList);
+        setTraineeLeaderboard(
+          Array.from(traineeMap.values())
+            .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+            .slice(0, 5)
+            .map((e) => ({
+              id: e.id,
+              name: e.name,
+              country: e.country,
+              code: e.code,
+              completed: e.count,
+            })),
+        );
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
       } finally {
@@ -377,721 +379,377 @@ export default function TraineeDashboard() {
     };
   }, [router]);
 
-  /* ---------- enroll ---------- */
-  const enroll = useCallback(
-    async (competencyId: string) => {
-      if (!me) return;
-      const now = new Date().toISOString();
-      // optimistic
-      setAssignments((prev) => new Set(prev).add(competencyId));
+  // ── Derived stats (computed client-side, no extra queries) ────────────────────
 
-      const { error } = await supabase.from("competency_assignments").upsert(
-        [
-          {
-            student_id: me.id,
-            competency_id: competencyId,
-            assigned_at: now,
-          },
-        ],
-        { onConflict: "student_id,competency_id" },
-      );
-      if (error) {
-        // rollback
-        setAssignments((prev) => {
-          const next = new Set(prev);
-          next.delete(competencyId);
-          return next;
-        });
-        setErr(error.message);
-      }
-    },
-    [me],
+  // Only enrolled competencies contribute to stats
+  const enrolledComps = useMemo(
+    () => competencies.filter((c) => assignments.has(c.id)),
+    [competencies, assignments],
   );
 
-  /** Bulk-enroll (a.k.a. "Bulk test") by difficulty */
-  const bulkEnroll = useCallback(
-    async (diff: "beginner" | "intermediate" | "expert" | "all") => {
-      if (!me) return;
+  const enrolledTotal = enrolledComps.length;
 
-      // Compute target list from ALL competencies, excluding already enrolled
-      const pool =
-        diff === "all"
-          ? allComps
-          : allComps.filter(
-              (c) =>
-                (c.difficulty ?? "").toLowerCase() === diff &&
-                !assignments.has(c.id),
-            );
-
-      const targets = pool
-        .filter((c) => !assignments.has(c.id))
-        .map((c) => c.id);
-
-      if (targets.length === 0) {
-        setErr(
-          "No competencies available to bulk test for the selected difficulty.",
-        );
-        return;
-      }
-
-      // Optimistic update
-      setAssignments((prev) => {
-        const next = new Set(prev);
-        targets.forEach((id) => next.add(id));
-        return next;
-      });
-
-      const now = new Date().toISOString();
-      const rows = targets.map((id) => ({
-        student_id: me.id,
-        competency_id: id,
-        assigned_at: now,
-      }));
-
-      const { error } = await supabase
-        .from("competency_assignments")
-        .upsert(rows, { onConflict: "student_id,competency_id" });
-
-      if (error) {
-        // rollback if insert failed
-        setAssignments((prev) => {
-          const next = new Set(prev);
-          targets.forEach((id) => next.delete(id));
-          return next;
-        });
-        setErr(error.message);
-      }
-    },
-    [me, allComps, assignments],
-  );
-
-  /* ---------- derive filters & splits ---------- */
-  const allTags = useMemo(() => tagOptions, [tagOptions]);
-
-  const filtered = useMemo(() => {
-    let list = allComps;
-
-    if (diffFilter !== "all") {
-      list = list.filter(
-        (c) => (c.difficulty ?? "").toLowerCase() === diffFilter,
-      );
-    }
-
-    if (selectedTags.size > 0) {
-      list = list.filter((c) => {
-        const tags = new Set(c.tags ?? []);
-        for (const t of selectedTags) {
-          if (!tags.has(t)) return false;
-        }
-        return true;
-      });
-    }
-
-    const q = searchQ.trim().toLowerCase();
-    if (q) {
-      list = list.filter((c) => {
-        const hay =
-          (c.name ?? "") +
-          " " +
-          (c.difficulty ?? "") +
-          " " +
-          (c.tags ?? []).join(" ");
-        return hay.toLowerCase().includes(q);
-      });
-    }
-
-    return list;
-  }, [allComps, diffFilter, selectedTags, searchQ]);
-
-  const enrolledList = useMemo(
-    () => filtered.filter((c) => assignments.has(c.id)),
-    [filtered, assignments],
-  );
-
-  const availableList = useMemo(
-    () => filtered.filter((c) => !assignments.has(c.id)),
-    [filtered, assignments],
-  );
-
-  // split enrolled into in-progress vs completed (>= 100%)
-  const completedList: Competency[] = useMemo(
+  const completedTotal = useMemo(
     () =>
-      enrolledList.filter((c) => {
-        const pct = progressByComp.get(c.id)?.pct ?? 0;
-        return pct >= 100; // auto-completed when backend pct is 100
-      }),
-    [enrolledList, progressByComp],
+      enrolledComps.filter((c) => (progressMap.get(c.id) ?? 0) >= 100).length,
+    [enrolledComps, progressMap],
   );
 
-  const inProgressList: Competency[] = useMemo(
+  const inProgressTotal = useMemo(
     () =>
-      enrolledList.filter((c) => {
-        const pct = progressByComp.get(c.id)?.pct ?? 0;
-        return pct < 100; // still in progress if backend pct < 100
-      }),
-    [enrolledList, progressByComp],
+      enrolledComps.filter((c) => {
+        const pct = progressMap.get(c.id) ?? 0;
+        return pct > 0 && pct < 100;
+      }).length,
+    [enrolledComps, progressMap],
   );
 
-  const completionStats = useMemo(() => {
-    const enrolledTotal = enrolledList.length;
+  const overallPct =
+    enrolledTotal > 0 ? Math.round((completedTotal / enrolledTotal) * 100) : 0;
 
-    const enrolledByDiff: Record<string, number> = {
-      beginner: 0,
-      intermediate: 0,
-      expert: 0,
-      other: 0,
-    };
+  // Accuracy: correct / total answers in last 30 days
+  const accuracyPct = useMemo(() => {
+    if (answers.length === 0) return null;
+    const correct = answers.filter((a) => a.is_correct).length;
+    return Math.round((correct / answers.length) * 100);
+  }, [answers]);
 
-    const completedByDiff: Record<string, number> = {
-      beginner: 0,
-      intermediate: 0,
-      expert: 0,
-      other: 0,
-    };
-
-    let completedTotal = 0;
-
-    for (const c of enrolledList) {
-      const raw = (c.difficulty ?? "").toLowerCase();
-      const bucket =
-        raw === "beginner" || raw === "intermediate" || raw === "expert"
-          ? raw
-          : "other";
-
-      enrolledByDiff[bucket]++;
-
-      const pct = Math.max(
-        0,
-        Math.min(100, Math.round(progressByComp.get(c.id)?.pct ?? 0)),
+  // Per-difficulty stats
+  const diffStats = useMemo(() => {
+    function calc(bucket: DiffBucket) {
+      const subset = enrolledComps.filter(
+        (c) => toBucket(c.difficulty) === bucket,
       );
-      if (pct >= 100) {
-        completedTotal++;
-        completedByDiff[bucket]++;
-      }
+      const completed = subset.filter(
+        (c) => (progressMap.get(c.id) ?? 0) >= 100,
+      ).length;
+      const pct =
+        subset.length > 0 ? Math.round((completed / subset.length) * 100) : 0;
+      return { enrolled: subset.length, completed, pct };
     }
-
-    const pctSafe = (done: number, total: number) => {
-      if (!total) return 0;
-      return Math.round((done / total) * 100);
-    };
-
     return {
-      overallPct: pctSafe(completedTotal, enrolledTotal),
-      beginnerPct: pctSafe(completedByDiff.beginner, enrolledByDiff.beginner),
-      intermediatePct: pctSafe(
-        completedByDiff.intermediate,
-        enrolledByDiff.intermediate,
-      ),
-      expertPct: pctSafe(completedByDiff.expert, enrolledByDiff.expert),
+      beginner: calc("beginner"),
+      intermediate: calc("intermediate"),
+      expert: calc("expert"),
     };
-  }, [enrolledList, progressByComp]);
+  }, [enrolledComps, progressMap]);
 
-  // modal-filtered available list
-  const availableForModal = useMemo(() => {
-    let list = availableList;
-    if (diffFilterEnroll !== "all") {
-      list = list.filter(
-        (c) => (c.difficulty ?? "").toLowerCase() === diffFilterEnroll,
-      );
+  // Activity chart: answers per calendar day over last 30 days
+  const activityData = useMemo((): ActivityPoint[] => {
+    // Pre-fill all 30 days with 0 so days with no activity still render
+    const buckets = new Map<string, number>();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      buckets.set(d.toISOString().slice(0, 10), 0);
     }
-    if (selectedTagsEnroll.size > 0) {
-      list = list.filter((c) => {
-        const tags = new Set(c.tags ?? []);
-        for (const t of selectedTagsEnroll) {
-          if (!tags.has(t)) return false;
-        }
-        return true;
-      });
-    }
-    const q = searchQEnroll.trim().toLowerCase();
-    if (q) {
-      list = list.filter((c) => {
-        const hay =
-          (c.name ?? "") +
-          " " +
-          (c.difficulty ?? "") +
-          " " +
-          (c.tags ?? []).join(" ");
-        return hay.toLowerCase().includes(q);
-      });
-    }
-    return list;
-  }, [availableList, diffFilterEnroll, selectedTagsEnroll, searchQEnroll]);
-
-  /* ---------- helpers ---------- */
-  const badgeBg = (diff?: string | null) => {
-    const k = (diff ?? "").toLowerCase();
-    if (k === "beginner") return "var(--ok)";
-    if (k === "intermediate") return "var(--warn)";
-    if (k === "expert") return "var(--err)";
-    return "var(--border)";
-  };
-
-  const topStripe = (diff?: string | null) => {
-    const base = badgeBg(diff);
-    return `${base}`;
-  };
-
-  const toggleTag = (t: string) =>
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
+    answers.forEach((a) => {
+      const key = a.answered_at.slice(0, 10);
+      if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
     });
+    return Array.from(buckets.entries()).map(([isoDate, count]) => ({
+      date: new Date(isoDate + "T12:00:00").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      answers: count,
+    }));
+  }, [answers]);
 
-  const clearFilters = () => {
-    setDiffFilter("all");
-    setSelectedTags(new Set());
-    setSearchQ("");
-  };
-
-  const toggleTagEnroll = (t: string) =>
-    setSelectedTagsEnroll((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
+  // Tag breakdown: enrolled competency count per tag name
+  const tagBreakdown = useMemo((): TagBar[] => {
+    const countMap = new Map<string, number>();
+    enrolledComps.forEach((c) => {
+      (c.tags ?? []).forEach((tagId) => {
+        const name = tagNames.get(tagId);
+        if (!name) return;
+        countMap.set(name, (countMap.get(name) ?? 0) + 1);
+      });
     });
+    return Array.from(countMap.entries())
+      .map(([tag, count]) => ({ tag: `#${tag}`, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8); // top 8 tags
+  }, [enrolledComps, tagNames]);
 
-  const clearEnrollFilters = () => {
-    setDiffFilterEnroll("all");
-    setSelectedTagsEnroll(new Set());
-    setSearchQEnroll("");
-  };
+  // ── Display helpers ───────────────────────────────────────────────────────────
 
-  const meAvatarUrl = me?.avatar_path
-    ? supabase.storage.from("profile-pictures").getPublicUrl(me.avatar_path)
-        .data.publicUrl
-    : "";
+  function getDisplayName(p: Profile | null) {
+    if (!p) return "";
+    return (
+      p.full_name ||
+      [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+      p.email ||
+      "there"
+    );
+  }
 
-  /* ---------- render ---------- */
+  const displayName = getDisplayName(me);
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
   return (
-    <main className="bg-[var(--background)] text-[var(--foreground)] transition-colors">
-      {/* External Welcome */}
-      <section className="mx-auto max-w-6xl px-6 pt-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-              {greetingName ? `Welcome back, ${greetingName}` : "Welcome back"}
-            </h1>
-            <div className="accent-underline mt-3" />
-            <div className="mt-4 flex items-center gap-5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/sponsors/APSC_Logo.png"
-                alt="Asian Pacific Society of Cardiology logo"
-                className="h-20 w-auto object-contain"
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={tcipLogoSrc}
-                alt="TCIP logo"
-                className="h-20 w-auto object-contain"
-              />
-            </div>
-            <p className="mt-2 text-sm md:text-base text-[var(--muted)]">
-              Asia Pacific Society of Cardiology TCIP IVUS Course
-            </p>
+    <main className="bg-[var(--background)] text-[var(--foreground)] min-h-screen">
+      <div className="mx-auto max-w-6xl px-6 py-8 space-y-6">
+        {/* ── Error banner ── */}
+        {err && (
+          <div className="rounded-xl border border-red-900/40 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+            {err}
           </div>
+        )}
+
+        {/* ── Page header ── */}
+        <div>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+            {loading
+              ? "Welcome back"
+              : displayName
+                ? `Welcome back, ${displayName.split(" ")[0]}`
+                : "Welcome back"}
+          </h1>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Here&apos;s your training overview — track your progress, see where
+            you stand, and keep pushing forward.
+          </p>
+          <div className="accent-underline mt-3" />
         </div>
-      </section>
 
-      {/* Profile Hero */}
-      <section className="mx-auto max-w-6xl px-6 pt-6 mb-5">
-        <div
-          className="rounded-2xl border bg-[var(--surface)] overflow-hidden transition will-change-transform"
-          style={{
-            borderColor:
-              "color-mix(in oklab, var(--accent) 40%, var(--border))",
-            boxShadow:
-              "0 0 0 2px color-mix(in oklab, var(--accent) 22%, transparent), 0 8px 28px color-mix(in oklab, var(--accent) 18%, transparent)",
-          }}
-        >
-          <div className="pt-5 md:pt-6 px-5 md:px-6 pb-5">
-            <div className="flex items-start justify-between gap-4">
-              {/* left: avatar + text */}
-              <div className="flex items-center gap-4">
-                <div
-                  className="h-16 w-16 md:h-20 md:w-20 overflow-hidden rounded-full flex items-center justify-center text-white text-xl md:text-2xl font-semibold shadow-md ring-4 ring-[var(--surface)]"
-                  style={{ background: "var(--accent)" }}
-                >
-                  {meAvatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={meAvatarUrl}
-                      alt={greetingName || "Profile picture"}
-                      className="h-full w-full object-cover object-center"
-                    />
-                  ) : (
-                    getInitials(greetingName || me?.email || "")
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-xl md:text-2xl font-semibold tracking-tight break-words">
-                      {greetingName || "Welcome back"}
-                    </h1>
-                    <span
-                      className="text-[10px] md:text-xs font-medium rounded-full px-2 py-0.5 border bg-[var(--field)] text-[var(--foreground)]/90"
-                      style={{
-                        background:
-                          "color-mix(in oklab, var(--accent) 15%, transparent)",
-                        borderColor:
-                          "color-mix(in oklab, var(--accent) 35%, transparent)",
-                        color: "var(--accent)",
-                      }}
-                    >
-                      Active Learner
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs md:text-sm text-[var(--muted)]">
-                    Explore competencies, enroll in topics you want to master,
-                    and track your progress.
-                  </p>
-                  <div className="mt-1 flex items-center gap-4 text-xs md:text-sm text-[var(--muted)]">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Building2 className="h-3.5 w-3.5" aria-hidden />
-                      {me?.university || me?.hospital || "—"}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5" aria-hidden />
-                      {me?.country_name || "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* right: + Enroll */}
-              <div className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowEnrollModal(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border-2 px-3.5 py-2 text-sm font-medium will-change-transform transition-transform duration-300 ease-out active:scale-[0.98] hover:scale-[1.06]"
-                  style={{
-                    background: "var(--accent)",
-                    color: "#fff",
-                    borderColor: "var(--accent)",
-                    transition:
-                      "transform 300ms cubic-bezier(0.22,1,0.36,1), background-color 220ms ease, color 220ms ease, border-color 220ms ease",
-                  }}
-                  title="Enroll in a competency"
-                >
-                  + Enroll
-                </button>
-              </div>
-            </div>
-
-            {/* Top Stats Row + completion breakdown */}
-            <div className="mt-4 flex flex-col md:flex-row gap-6 md:items-center">
-              <div className="flex items-center gap-8">
-                <StatText
-                  label="Enrolled"
-                  value={formatNumber(enrolledList.length)}
-                  color="var(--accent)"
-                />
-                <StatText
-                  label="Completed"
-                  value={formatNumber(
-                    enrolledList.filter(
-                      (c) => (progressByComp.get(c.id)?.pct ?? 0) >= 100,
-                    ).length,
-                  )}
-                  color="var(--ok)"
-                />
-              </div>
-
-              <div className="hidden md:block h-12 w-px self-center bg-[var(--border)]" />
-
-              {/* Compact side-by-side progress bars */}
-              <div className="flex-1 flex flex-wrap gap-3 md:justify-end">
-                <ProgressStatRow
-                  label="Overall"
-                  pct={completionStats.overallPct}
-                  color="var(--accent)"
-                />
-                <ProgressStatRow
-                  label="Beginner"
-                  pct={completionStats.beginnerPct}
-                  color="var(--ok)"
-                />
-                <ProgressStatRow
-                  label="Intermediate"
-                  pct={completionStats.intermediatePct}
-                  color="var(--warn)"
-                />
-                <ProgressStatRow
-                  label="Expert"
-                  pct={completionStats.expertPct}
-                  color="var(--err)"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Enroll Modal */}
-      {showEnrollModal && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowEnrollModal(false)}
+        {/* ── 6 KPI stat cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <StatCard
+            icon={<BookOpen size={18} />}
+            label="Enrolled"
+            value={loading ? "—" : String(enrolledTotal)}
+            color="var(--accent)"
+            loading={loading}
           />
-          <div className="absolute left-1/2 top-12 -translate-x-1/2 w-[min(100%,56rem)] mx-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-              <h3 className="text-lg font-semibold">Enroll in a competency</h3>
-              <button
-                type="button"
-                onClick={() => setShowEnrollModal(false)}
-                className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm hover:bg-[var(--field)]"
-                title="Close"
-              >
-                ✕
-              </button>
+          <StatCard
+            icon={<Clock size={18} />}
+            label="In Progress"
+            value={loading ? "—" : String(inProgressTotal)}
+            color="var(--warn)"
+            loading={loading}
+          />
+          <StatCard
+            icon={<CheckCircle2 size={18} />}
+            label="Completed"
+            value={loading ? "—" : String(completedTotal)}
+            color="var(--ok)"
+            loading={loading}
+          />
+          <StatCard
+            icon={<TrendingUp size={18} />}
+            label="Overall"
+            value={loading ? "—" : `${overallPct}%`}
+            color="var(--accent)"
+            loading={loading}
+          />
+          {/* Accuracy: null means no answers yet — show dash */}
+          <StatCard
+            icon={<Target size={18} />}
+            label="Accuracy"
+            value={
+              loading ? "—" : accuracyPct !== null ? `${accuracyPct}%` : "—"
+            }
+            color="var(--ok)"
+            loading={loading}
+            subtitle="last 30 days"
+          />
+          {/* Rank: null means no completions on platform yet */}
+          <StatCard
+            icon={<Trophy size={18} />}
+            label="Your Rank"
+            value={loading ? "—" : myRank !== null ? `#${myRank}` : "—"}
+            color="var(--warn)"
+            loading={loading}
+            subtitle={totalTrainees > 0 ? `of ${totalTrainees}` : undefined}
+          />
+        </div>
+
+        {/* ── Activity chart (3/5) + Difficulty progress (2/5) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Activity area chart */}
+          <div className="lg:col-span-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+              Activity
             </div>
+            <div className="text-base font-semibold mb-1">
+              Answers submitted
+            </div>
+            <div className="text-xs text-[var(--muted)] mb-4">Last 30 days</div>
 
-            <div className="p-5">
-              {/* Filters (same logic as main page) */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <FilterChip
-                    label="All"
-                    active={diffFilterEnroll === "all"}
-                    onClick={() => setDiffFilterEnroll("all")}
-                  />
-                  <FilterChip
-                    label="Beginner"
-                    color="var(--ok)"
-                    active={diffFilterEnroll === "beginner"}
-                    onClick={() => setDiffFilterEnroll("beginner")}
-                  />
-                  <FilterChip
-                    label="Intermediate"
-                    color="var(--warn)"
-                    active={diffFilterEnroll === "intermediate"}
-                    onClick={() => setDiffFilterEnroll("intermediate")}
-                  />
-                  <FilterChip
-                    label="Expert"
-                    color="var(--err)"
-                    active={diffFilterEnroll === "expert"}
-                    onClick={() => setDiffFilterEnroll("expert")}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--field)] w-full">
-                    <input
-                      value={searchQEnroll}
-                      onChange={(e) => setSearchQEnroll(e.target.value)}
-                      placeholder="Search by name or tag…"
-                      className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:[color:var(--muted)]"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearEnrollFilters}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm hover:bg-[var(--surface)] transition hover:scale-[1.02] active:scale-[0.99]"
-                    title="Clear all filters"
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-1">
-                  {allTags.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => toggleTagEnroll(t)}
-                      onMouseEnter={(e) => {
-                        if (!selectedTagsEnroll.has(t)) {
-                          e.currentTarget.style.background =
-                            "color-mix(in oklab, var(--accent) 12%, transparent)";
-                          e.currentTarget.style.borderColor =
-                            "color-mix(in oklab, var(--accent) 28%, transparent)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!selectedTagsEnroll.has(t)) {
-                          e.currentTarget.style.background = "var(--surface)";
-                          e.currentTarget.style.borderColor = "var(--border)";
-                        }
-                      }}
-                      className={[
-                        "text-[10px] rounded-full border px-2 py-0.5 transition transform hover:scale-[1.03]",
-                        selectedTagsEnroll.has(t)
-                          ? "text-white border-transparent"
-                          : "text-[var(--foreground)]/80",
-                      ].join(" ")}
-                      style={{
-                        background: selectedTagsEnroll.has(t)
-                          ? "var(--accent)"
-                          : "var(--surface)",
-                        borderColor: selectedTagsEnroll.has(t)
-                          ? "transparent"
-                          : "var(--border)",
-                      }}
-                      title={t}
-                    >
-                      #{t}
-                    </button>
-                  ))}
-                  {allTags.length === 0 && (
-                    <span className="text-xs text-[var(--muted)]">
-                      No tags available.
-                    </span>
-                  )}
-                </div>
+            {loading ? (
+              <div className="h-40 rounded-xl bg-[var(--field)] animate-pulse" />
+            ) : answers.length === 0 ? (
+              <div className="h-40 flex items-center justify-center">
+                <p className="text-xs text-[var(--muted)]">
+                  No activity in the last 30 days.
+                </p>
               </div>
-
-              {/* Bulk test actions */}
-              <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="text-sm font-medium">Bulk test</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => bulkEnroll("beginner")}
-                      className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:scale-[1.03]"
-                      style={{
-                        background: "var(--ok)",
-                        color: "#000",
-                        borderColor:
-                          "color-mix(in oklab, var(--ok) 35%, transparent)",
-                      }}
-                      title="Enroll in all Beginner competencies"
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <AreaChart
+                  data={activityData}
+                  margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
+                >
+                  <defs>
+                    {/* Gradient fill beneath the curve */}
+                    <linearGradient
+                      id="activityGrad"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
                     >
-                      Enroll in all Beginner
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => bulkEnroll("intermediate")}
-                      className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:scale-[1.03]"
-                      style={{
-                        background: "var(--warn)",
-                        color: "#000",
-                        borderColor:
-                          "color-mix(in oklab, var(--warn) 35%, transparent)",
-                      }}
-                      title="Enroll in all Intermediate competencies"
-                    >
-                      Enroll in all Intermediate
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => bulkEnroll("expert")}
-                      className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:scale-[1.03]"
-                      style={{
-                        background: "var(--err)",
-                        color: "#000",
-                        borderColor:
-                          "color-mix(in oklab, var(--err) 35%, transparent)",
-                      }}
-                      title="Enroll in all Expert competencies"
-                    >
-                      Enroll in all Expert
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => bulkEnroll("all")}
-                      className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:scale-[1.03]"
-                      style={{
-                        background: "var(--field)",
-                        color: "var(--foreground)",
-                        borderColor: "var(--border)",
-                      }}
-                      title="Enroll in all available competencies"
-                    >
-                      Enroll in all Available
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* List */}
-              <div className="mt-4 max-h-[60vh] overflow-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {availableForModal.map((c) => {
-                  const title = c.name ?? `Topic ${c.id.slice(0, 8)}…`;
-                  const diffRaw = (c.difficulty ?? "").trim();
-                  // const p = progressByComp.get(c.id);
-                  // const pct = Math.max(
-                  //   0,
-                  //   Math.min(100, Math.round(p?.pct ?? 0))
-                  // );
-                  return (
-                    <article
-                      key={`enroll_${c.id}`}
-                      className="relative rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm overflow-hidden"
-                    >
-                      <div
-                        className="absolute inset-x-0 top-0 h-1.5"
-                        style={{ background: topStripe(diffRaw) }}
-                        aria-hidden
+                      <stop
+                        offset="5%"
+                        stopColor="var(--accent)"
+                        stopOpacity={0.3}
                       />
-                      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                        {diffRaw && (
-                          <span
-                            className="text-[10px] font-semibold rounded-full px-2 py-0.5"
-                            style={{
-                              background: badgeBg(diffRaw),
-                              color: "#000",
-                            }}
-                          >
-                            {diffRaw}
-                          </span>
-                        )}
-                        <button
-                          onClick={() => enroll(c.id)}
-                          className="inline-flex h-8 items-center justify-center rounded-xl border-2 px-3 text-xs font-medium transition transform hover:scale-[1.04] active:scale-[0.98]"
-                          style={{
-                            background: "#fff",
-                            color: "var(--accent)",
-                            borderColor: "var(--accent)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--accent)";
-                            e.currentTarget.style.color = "#fff";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "#fff";
-                            e.currentTarget.style.color = "var(--accent)";
-                          }}
-                          title="Enroll"
-                        >
-                          + Enroll
-                        </button>
-                      </div>
-                      <div className="min-w-0 pr-24 md:pr-28">
-                        <h4 className="font-semibold leading-tight break-words -mt-0.5">
-                          {title}
-                        </h4>
-                        {!!c.tags?.length && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {c.tags!.slice(0, 6).map((t) => (
-                              <Tag key={t}>#{t}</Tag>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-                {availableForModal.length === 0 && (
-                  <div className="text-sm text-[var(--muted)] px-1 py-8">
-                    No competencies match your filters.
-                  </div>
-                )}
-              </div>
+                      <stop
+                        offset="95%"
+                        stopColor="var(--accent)"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "var(--muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={5} // show every 6th label to avoid crowding
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "var(--muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      color: "var(--foreground)",
+                    }}
+                    itemStyle={{ color: "var(--accent)" }}
+                    cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="answers"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    fill="url(#activityGrad)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--accent)" }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Difficulty progress bars */}
+          <div className="lg:col-span-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+              Breakdown
+            </div>
+            <div className="text-base font-semibold mb-4">
+              Progress by difficulty
+            </div>
+            <div className="flex flex-col gap-5">
+              <DifficultyProgressCard
+                label="Beginner"
+                color="var(--ok)"
+                {...diffStats.beginner}
+                loading={loading}
+              />
+              <DifficultyProgressCard
+                label="Intermediate"
+                color="var(--warn)"
+                {...diffStats.intermediate}
+                loading={loading}
+              />
+              <DifficultyProgressCard
+                label="Expert"
+                color="var(--err)"
+                {...diffStats.expert}
+                loading={loading}
+              />
             </div>
           </div>
         </div>
-      )}
 
-      {/* Leaderboards */}
-      <section className="mx-auto max-w-6xl px-6 pb-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* ── Tag breakdown horizontal bar chart — only renders if trainee has enrolled comps with tags ── */}
+        {(loading || tagBreakdown.length > 0) && (
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+              Topics
+            </div>
+            <div className="text-base font-semibold mb-1">Enrolled by tag</div>
+            <div className="text-xs text-[var(--muted)] mb-4">
+              How many of your enrolled competencies belong to each tag
+            </div>
+
+            {loading ? (
+              <div className="h-48 rounded-xl bg-[var(--field)] animate-pulse" />
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={Math.max(160, tagBreakdown.length * 36)}
+              >
+                <BarChart
+                  data={tagBreakdown}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, bottom: 0, left: 8 }}
+                >
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 10, fill: "var(--muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="tag"
+                    tick={{ fontSize: 11, fill: "var(--foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={96}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      color: "var(--foreground)",
+                    }}
+                    cursor={{
+                      fill: "color-mix(in oklab, var(--accent) 8%, transparent)",
+                    }}
+                    formatter={(value) => [value ?? 0, "competencies"]}
+                  />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                    {/* Subtle opacity gradient — most frequent tag is full opacity */}
+                    {tagBreakdown.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill="var(--accent)"
+                        fillOpacity={1 - i * 0.07}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        )}
+
+        {/* ── Leaderboards ── */}
+        <div className="grid gap-4 md:grid-cols-2">
           <CountryLeaderboardCard
             entries={countryLeaderboard}
             loading={loading}
@@ -1100,302 +758,125 @@ export default function TraineeDashboard() {
             entries={traineeLeaderboard}
             loading={loading}
           />
-          <TagLeaderboardCard entries={tagLeaderboard} loading={loading} />
         </div>
-      </section>
-
-      {/* Notices */}
-      <section className="mx-auto max-w-6xl px-6">
-        {err && (
-          <div className="mb-4 rounded-xl border border-red-900/40 bg-red-950/40 px-4 py-3 text-sm text-red-200 shadow">
-            {err}
-          </div>
-        )}
-      </section>
-
-      {/* Filters */}
-      <section className="mx-auto max-w-6xl px-6 pb-3">
-        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 justify-between">
-            <div className="flex items-center gap-2 text-xs">
-              <FilterChip
-                label="All"
-                active={diffFilter === "all"}
-                onClick={() => setDiffFilter("all")}
-              />
-              <FilterChip
-                label="Beginner"
-                color="var(--ok)"
-                active={diffFilter === "beginner"}
-                onClick={() => setDiffFilter("beginner")}
-              />
-              <FilterChip
-                label="Intermediate"
-                color="var(--warn)"
-                active={diffFilter === "intermediate"}
-                onClick={() => setDiffFilter("intermediate")}
-              />
-              <FilterChip
-                label="Expert"
-                color="var(--err)"
-                active={diffFilter === "expert"}
-                onClick={() => setDiffFilter("expert")}
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full lg:w-auto">
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--field)] w-full lg:w-80">
-                <input
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  placeholder="Search by name or tag…"
-                  className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:[color:var(--muted)]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm hover:bg-[var(--surface)] transition hover:scale-[1.02] active:scale-[0.99]"
-                title="Clear all filters"
-              >
-                Clear all
-              </button>
-            </div>
-          </div>
-
-          {/* tag multi-select */}
-          <div className="flex flex-wrap gap-1">
-            {allTags.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => toggleTag(t)}
-                onMouseEnter={(e) => {
-                  if (!selectedTags.has(t)) {
-                    e.currentTarget.style.background =
-                      "color-mix(in oklab, var(--accent) 12%, transparent)";
-                    e.currentTarget.style.borderColor =
-                      "color-mix(in oklab, var(--accent) 28%, transparent)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!selectedTags.has(t)) {
-                    e.currentTarget.style.background = "var(--surface)";
-                    e.currentTarget.style.borderColor = "var(--border)";
-                  }
-                }}
-                className={[
-                  "text-[10px] rounded-full border px-2 py-0.5 transition transform hover:scale-[1.03]",
-                  selectedTags.has(t)
-                    ? "text-white border-transparent"
-                    : "text-[var(--foreground)]/80",
-                ].join(" ")}
-                style={{
-                  background: selectedTags.has(t)
-                    ? "var(--accent)"
-                    : "var(--surface)",
-                  borderColor: selectedTags.has(t)
-                    ? "transparent"
-                    : "var(--border)",
-                }}
-                title={t}
-              >
-                #{t}
-              </button>
-            ))}
-            {allTags.length === 0 && (
-              <span className="text-xs text-[var(--muted)]">
-                No tags available.
-              </span>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Currently Enrolled */}
-      <section className="mx-auto max-w-6xl px-6 pb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg md:text-xl font-semibold">
-            Currently Enrolled
-          </h2>
-          <div className="text-xs text-[var(--muted)]">
-            {inProgressList.length} shown
-          </div>
-        </div>
-
-        {loading && <div className="text-[var(--muted)]">Loading…</div>}
-        {!loading && inProgressList.length === 0 && (
-          <div className="text-[var(--muted)] text-sm">
-            You’re not enrolled in any competencies matching these filters.
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {inProgressList.map((c) => {
-            const title = c.name ?? `Topic ${c.id.slice(0, 8)}…`;
-            const diffRaw = (c.difficulty ?? "").trim();
-            const p = progressByComp.get(c.id);
-            const hasQuestions =
-              (p?.total_questions ?? 0) > 0 ||
-              !!(c.test_question && c.test_question.trim().length);
-
-            return (
-              <article
-                key={`enr_${c.id}`}
-                className="relative rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm min-h-[160px] overflow-hidden"
-              >
-                <div
-                  className="absolute inset-x-0 top-0 h-1.5"
-                  style={{ background: topStripe(diffRaw) }}
-                  aria-hidden
-                />
-                <div className="flex items-start gap-2 h-full">
-                  {/* Top-right: difficulty pill */}
-                  <div className="absolute top-4 right-4 z-10">
-                    {diffRaw && (
-                      <span
-                        className="text-[10px] font-semibold rounded-full px-2 py-0.5"
-                        style={{ background: badgeBg(diffRaw), color: "#000" }}
-                      >
-                        {diffRaw}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Main content */}
-                  <div className="min-w-0 flex-1 pr-24 md:pr-32 pb-8">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold leading-snug break-words">
-                        {title}
-                      </h3>
-                    </div>
-
-                    {!!c.tags?.length && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {c.tags!.slice(0, 6).map((t: string) => (
-                          <Tag key={t}>#{t}</Tag>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom-right: chevron to open questions */}
-                  {hasQuestions && (
-                    <a
-                      href={`/trainee/competency/${c.id}`}
-                      className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-xs font-medium transition transform hover:scale-[1.04] active:scale-[0.98]"
-                      style={{
-                        background: "var(--accent)",
-                        color: "#fff",
-                        borderColor: "var(--accent)",
-                      }}
-                    >
-                      <span>Test</span>
-                    </a>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Completed */}
-      <section className="mx-auto max-w-6xl px-6 pb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg md:text-xl font-semibold">Completed</h2>
-          <div className="text-xs text-[var(--muted)]">
-            {completedList.length} shown
-          </div>
-        </div>
-
-        {!loading && completedList.length === 0 && (
-          <div className="text-[var(--muted)] text-sm">
-            No completed competencies yet.
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {completedList.map((c) => {
-            const title = c.name ?? `Topic ${c.id.slice(0, 8)}…`;
-            const diffRaw = (c.difficulty ?? "").trim();
-            return (
-              <article
-                key={`done_${c.id}`}
-                className="relative rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm min-h-[140px] overflow-hidden"
-              >
-                <div
-                  className="absolute inset-x-0 top-0 h-1.5"
-                  style={{ background: topStripe(diffRaw) }}
-                  aria-hidden
-                />
-                <div className="flex items-start gap-2">
-                  <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                    {diffRaw && (
-                      <span
-                        className="text-[10px] font-semibold rounded-full px-2 py-0.5"
-                        style={{ background: badgeBg(diffRaw), color: "#000" }}
-                      >
-                        {diffRaw}
-                      </span>
-                    )}
-                    <span
-                      className="text-[10px] font-semibold rounded-full px-2 py-0.5 border"
-                      style={{
-                        background:
-                          "color-mix(in oklab, var(--ok) 20%, transparent)",
-                        borderColor:
-                          "color-mix(in oklab, var(--ok) 40%, transparent)",
-                        color: "var(--ok)",
-                      }}
-                      title="Completed"
-                    >
-                      Completed
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1 pr-24 md:pr-32">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold leading-snug break-words">
-                        {title}
-                      </h3>
-                    </div>
-                    {!!c.tags?.length && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {c.tags!.slice(0, 6).map((t) => (
-                          <Tag key={t}>#{t}</Tag>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Available Competencies — now shown in modal only */}
-      {false && (
-        <section className="mx-auto max-w-6xl px-6 pb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg md:text-xl font-semibold">
-              Available Competencies
-            </h2>
-            <div className="text-xs text-[var(--muted)]">
-              {availableList.length} shown
-            </div>
-          </div>
-          {/* (hidden) */}
-        </section>
-      )}
+      </div>
     </main>
   );
 }
 
-/* ---------- charts ---------- */
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
-/* ---------- tiny presentational helpers ---------- */
+/** Single KPI stat card with optional subtitle below value */
+function StatCard({
+  icon,
+  label,
+  value,
+  color,
+  loading,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: string;
+  loading: boolean;
+  subtitle?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3">
+      {/* Tinted icon chip */}
+      <div
+        className="h-9 w-9 rounded-xl grid place-items-center flex-shrink-0"
+        style={{
+          background: `color-mix(in oklab, ${color} 15%, transparent)`,
+          color,
+        }}
+      >
+        {icon}
+      </div>
 
+      {/* Value + optional subtitle */}
+      {loading ? (
+        <div className="h-8 w-16 rounded-lg bg-[var(--field)] animate-pulse" />
+      ) : (
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-bold tracking-tight" style={{ color }}>
+            {value}
+          </span>
+          {subtitle && (
+            <span className="text-xs text-[var(--muted)]">{subtitle}</span>
+          )}
+        </div>
+      )}
+
+      {/* Label */}
+      <span className="text-xs text-[var(--muted)] font-medium">{label}</span>
+    </div>
+  );
+}
+
+/** Single difficulty row: label + glow bar + count */
+function DifficultyProgressCard({
+  label,
+  color,
+  enrolled,
+  completed,
+  pct,
+  loading,
+}: {
+  label: string;
+  color: string;
+  enrolled: number;
+  completed: number;
+  pct: number;
+  loading: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+            style={{ background: color }}
+          />
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        {loading ? (
+          <div className="h-4 w-12 rounded bg-[var(--field)] animate-pulse" />
+        ) : (
+          <span className="text-sm font-semibold" style={{ color }}>
+            {pct}%
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="h-2.5 w-full rounded-full bg-[var(--field)] animate-pulse" />
+      ) : (
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--field)] border border-[var(--border)]">
+          <div
+            className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{
+              width: `${pct}%`,
+              background: color,
+              boxShadow: `0 0 8px color-mix(in oklab, ${color} 50%, transparent)`,
+            }}
+          />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="h-3 w-20 rounded bg-[var(--field)] animate-pulse" />
+      ) : (
+        <span className="text-xs text-[var(--muted)]">
+          {completed} / {enrolled} completed
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Country leaderboard card */
 function CountryLeaderboardCard({
   entries,
   loading,
@@ -1404,48 +885,34 @@ function CountryLeaderboardCard({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-            Country Leaderboard
-          </div>
-          <div className="text-base font-semibold">
-            Most completed competencies
-          </div>
-        </div>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+        Country Leaderboard
       </div>
-
-      {loading && entries.length === 0 ? (
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 3 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="h-10 rounded-xl bg-[var(--field)] border border-[var(--border)] animate-pulse"
-            />
-          ))}
-        </div>
+      <div className="text-base font-semibold mb-4">
+        Most completed competencies
+      </div>
+      {loading ? (
+        <LoadingSkeleton rows={3} />
       ) : entries.length === 0 ? (
-        <div className="mt-4 text-xs text-[var(--muted)]">
-          No completed competencies recorded yet.
-        </div>
+        <EmptyState text="No completed competencies recorded yet." />
       ) : (
-        <ul className="mt-4 space-y-3">
+        <ul className="space-y-3">
           {entries.map((entry, idx) => (
             <li
-              key={`${entry.country}-${entry.code ?? "unknown"}`}
+              key={`${entry.country}-${idx}`}
               className="flex items-center justify-between gap-3"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span className="w-5 text-sm font-semibold text-[var(--muted)]">
-                  {idx + 1}
+                <RankBadge rank={idx + 1} />
+                <CountryFlag code={entry.code} label={entry.country} />
+                <span className="text-sm font-medium truncate">
+                  {entry.country}
                 </span>
-                <CountryFlagIcon code={entry.code} label={entry.country} />
-                <span className="font-medium truncate">{entry.country}</span>
               </div>
-              <div className="text-left text-sm font-semibold">
+              <span className="text-sm font-semibold flex-shrink-0">
                 {entry.completed}
-              </div>
+              </span>
             </li>
           ))}
         </ul>
@@ -1454,6 +921,7 @@ function CountryLeaderboardCard({
   );
 }
 
+/** Trainee leaderboard card */
 function TraineeLeaderboardCard({
   entries,
   loading,
@@ -1462,43 +930,54 @@ function TraineeLeaderboardCard({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
         Top Trainees
       </div>
-      <div className="text-base font-semibold">Most completed competencies</div>
-
-      {loading && entries.length === 0 ? (
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 3 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="h-12 rounded-xl bg-[var(--field)] border border-[var(--border)] animate-pulse"
-            />
-          ))}
-        </div>
+      <div className="text-base font-semibold mb-4">
+        Most completed competencies
+      </div>
+      {loading ? (
+        <LoadingSkeleton rows={3} />
       ) : entries.length === 0 ? (
-        <div className="mt-4 text-xs text-[var(--muted)]">
-          No trainee completions recorded yet.
-        </div>
+        <EmptyState text="No trainee completions recorded yet." />
       ) : (
-        <ul className="mt-4 space-y-4">
+        <ul className="space-y-3">
           {entries.map((entry, idx) => (
             <li
               key={entry.id}
               className="flex items-center justify-between gap-3"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span className="w-5 text-sm font-semibold text-[var(--muted)]">
-                  {idx + 1}
-                </span>
+                <RankBadge rank={idx + 1} />
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{entry.name}</div>
+                  <div className="text-sm font-medium truncate">
+                    {entry.name}
+                  </div>
+                  {entry.country && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {entry.code && (
+                        <ReactCountryFlag
+                          countryCode={entry.code}
+                          svg
+                          style={{
+                            width: "0.9em",
+                            height: "0.9em",
+                            borderRadius: 2,
+                          }}
+                          aria-label={entry.country}
+                        />
+                      )}
+                      <span className="text-xs text-[var(--muted)] truncate">
+                        {entry.country}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="text-left text-sm font-semibold">
+              <span className="text-sm font-semibold flex-shrink-0">
                 {entry.completed}
-              </div>
+              </span>
             </li>
           ))}
         </ul>
@@ -1507,66 +986,22 @@ function TraineeLeaderboardCard({
   );
 }
 
-function TagLeaderboardCard({
-  entries,
-  loading,
-}: {
-  entries: TagLeaderboardEntry[];
-  loading: boolean;
-}) {
+// ── Tiny shared helpers ────────────────────────────────────────────────────────
+
+/** Gold for rank 1, muted otherwise */
+function RankBadge({ rank }: { rank: number }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
-      <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-        Hot Tags
-      </div>
-      <div className="text-base font-semibold">Most completed by tags</div>
-
-      {loading && entries.length === 0 ? (
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 3 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="h-10 rounded-xl bg-[var(--field)] border border-[var(--border)] animate-pulse"
-            />
-          ))}
-        </div>
-      ) : entries.length === 0 ? (
-        <div className="mt-4 text-xs text-[var(--muted)]">
-          No completed competencies in the dataset yet.
-        </div>
-      ) : (
-        <ul className="mt-4 space-y-3">
-          {entries.map((entry, idx) => (
-            <li
-              key={entry.tag}
-              className="flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="w-5 text-sm font-semibold text-[var(--muted)]">
-                  {idx + 1}
-                </span>
-                <span className="font-medium truncate">{entry.tag}</span>
-              </div>
-              <div className="text-left text-sm font-semibold">
-                {entry.completed}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <span
+      className="w-5 text-sm font-semibold flex-shrink-0 text-right"
+      style={{ color: rank === 1 ? "var(--warn)" : "var(--muted)" }}
+    >
+      {rank}
+    </span>
   );
 }
 
-function CountryFlagIcon({
-  code,
-  label,
-}: {
-  code: string | null;
-  label: string;
-}) {
-  const isNotSpecified =
-    label.trim().toLowerCase() === NOT_SPECIFIED_COUNTRY_LABEL.toLowerCase();
+/** Country flag SVG with plain text fallback */
+function CountryFlag({ code, label }: { code: string | null; label: string }) {
   if (code && code.length === 2) {
     return (
       <ReactCountryFlag
@@ -1584,146 +1019,31 @@ function CountryFlagIcon({
       />
     );
   }
-
   return (
     <span
       className="flex h-5 w-7 items-center justify-center rounded border border-[var(--border)] text-[10px] text-[var(--muted)]"
       aria-label={label}
-      title={label}
     >
-      {isNotSpecified ? "NS" : "??"}
+      ??
     </span>
   );
 }
 
-function ProgressBar({ pct, color }: { pct: number; color?: string }) {
-  const barColor = color ?? "var(--accent)";
+/** Animated placeholder skeleton rows */
+function LoadingSkeleton({ rows }: { rows: number }) {
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full border border-[var(--border)] bg-[var(--field)]">
-      <div
-        className="h-full"
-        style={{
-          width: `${pct}%`,
-          background: barColor,
-          boxShadow: `0 0 0 1px color-mix(in oklab, ${barColor} 20%, transparent) inset`,
-        }}
-      />
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div
+          key={i}
+          className="h-10 rounded-xl bg-[var(--field)] border border-[var(--border)] animate-pulse"
+        />
+      ))}
     </div>
   );
 }
 
-function ProgressStatRow({
-  label,
-  pct,
-  color,
-}: {
-  label: string;
-  pct: number;
-  color: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 w-28">
-      <span className="text-[10px] text-[var(--muted)] truncate">{label}</span>
-      <ProgressBar pct={pct} color={color} />
-      <span className="text-[10px] text-right font-medium">{pct}%</span>
-    </div>
-  );
-}
-
-function getInitials(text: string) {
-  const str = (text || "").trim();
-  if (!str) return "U";
-  const parts = str.split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || "";
-  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (a + b || a).toUpperCase();
-}
-
-function formatNumber(n: number) {
-  try {
-    return new Intl.NumberFormat().format(n);
-  } catch {
-    return String(n);
-  }
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[var(--foreground)]/80">
-      {children}
-    </span>
-  );
-}
-
-function FilterChip({
-  label,
-  onClick,
-  active,
-  color,
-}: {
-  label: string;
-  onClick: () => void;
-  active: boolean;
-  color?: string;
-}) {
-  // Use provided difficulty color for hover when available, else fall back to accent
-  const hoverBase = color ?? "var(--accent)";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={(e) => {
-        if (!active) {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            `color-mix(in oklab, ${hoverBase} 12%, transparent)`;
-          (e.currentTarget as HTMLButtonElement).style.borderColor =
-            `color-mix(in oklab, ${hoverBase} 28%, transparent)`;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "var(--surface)";
-          (e.currentTarget as HTMLButtonElement).style.borderColor =
-            "var(--border)";
-        }
-      }}
-      className={[
-        "px-3 py-1.5 rounded-full border text-xs font-medium transition transform",
-        "hover:scale-[1.03]",
-        active
-          ? "shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]"
-          : "",
-      ].join(" ")}
-      style={{
-        borderColor: "var(--border)",
-        background: active ? (color ?? "var(--field)") : "var(--surface)",
-        color: active ? "var(--foreground)" : "var(--foreground)",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function StatText({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string | number;
-  color?: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span
-        className="text-2xl font-semibold"
-        style={{ color: color ?? "inherit" }}
-      >
-        {value}
-      </span>
-      <span className="text-xs md:text-sm text-[var(--muted)]">{label}</span>
-    </div>
-  );
+/** Inline empty state message */
+function EmptyState({ text }: { text: string }) {
+  return <p className="text-xs text-[var(--muted)]">{text}</p>;
 }
