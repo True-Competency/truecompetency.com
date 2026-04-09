@@ -25,7 +25,9 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <input
         type={type}
         value={value}
@@ -33,7 +35,7 @@ function Field({
         placeholder={placeholder}
         autoComplete={autoComplete}
         required
-        className="w-full px-4 py-3 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+        className="w-full px-4 py-3 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
         style={{ borderRadius: "16px" }}
       />
     </div>
@@ -57,7 +59,9 @@ function PasswordField({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <div className="relative">
         <input
           type={show ? "text" : "password"}
@@ -66,19 +70,19 @@ function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           required
-          className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+          className="w-full px-4 py-3 pr-12 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
           style={{ borderRadius: "16px" }}
         />
         <button
           type="button"
           aria-label={show ? "Hide password" : "Show password"}
           onClick={() => setShow((s) => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
         >
           {show ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
-                d="M3 3l18 18M10.58 10.58A3 3 0 0012 15a3 3 0 001.42-.38M9.88 5.08A10.94 10.94 0 0112 5c5 0 9.27 3.11 11 7-.41.94-1 1.8-1.7 2.57M6.53 6.53C4.2 7.86 2.54 9.74 1 12c.64 1.17 1.5 2.24 2.53 3.17A11.22 11.22 0 0012 19c1.3 0 2.55-.2 3.72-.58"
+                d="M3 3l18 18M10.58 10.58A3 3 0 0012 15a3 3 0 001.42-.38M9.88 5.08A10.94 10.94 0 0112 5c5 0 9.27 3.11 11 7-.41.94-1 1.8-1.7 2.57M6.53 6.53C4.2 7.86 2.54 9.74 1 12c.64 1.17 1.5 2.24 2.53 3.17A11.22 11.22_0_0012 19c1.3 0 2.55-.2_3.72-.58"
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
@@ -310,7 +314,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
       <style jsx global>{`
         @keyframes float {
           0%,
@@ -350,10 +354,10 @@ export default function SignInPage() {
               className="drop-shadow-2xl"
             />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+              <h1 className="text-3xl font-bold text-[var(--foreground)] mb-1">
                 True Competency
               </h1>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[var(--muted)]">
                 TCIP APSC IVUS Competency Platform
               </p>
             </div>
@@ -361,14 +365,18 @@ export default function SignInPage() {
         </div>
 
         <div
-          className="bg-white shadow-2xl overflow-hidden"
+          className="bg-[var(--surface)] shadow-2xl overflow-hidden"
           style={{ borderRadius: "40px" }}
         >
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-900">Sign In</h2>
-                <p className="text-gray-600 mt-2">Continue to your dashboard</p>
+                <h2 className="text-3xl font-bold text-[var(--foreground)]">
+                  Sign In
+                </h2>
+                <p className="text-[var(--muted)] mt-2">
+                  Continue to your dashboard
+                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -417,7 +425,7 @@ export default function SignInPage() {
                 </button>
               </form>
 
-              <p className="mt-6 text-center text-sm text-gray-600">
+              <p className="mt-6 text-center text-sm text-[var(--muted)]">
                 Do not have an account?{" "}
                 <Link
                   href={`/signup?redirect=${encodeURIComponent(redirect || "/")}`}
@@ -428,7 +436,7 @@ export default function SignInPage() {
               </p>
             </div>
 
-            <div className="hidden lg:block bg-gray-50 p-8">
+            <div className="hidden lg:block bg-[var(--field)] p-8">
               <SignInRightPanel theme={resolvedTheme} />
             </div>
           </div>
