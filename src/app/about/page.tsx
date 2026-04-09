@@ -1,6 +1,8 @@
 import RootPage from "./page.client";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+export const dynamic = "force-dynamic";
+
 async function StatsLoader() {
   const supabase = getSupabaseAdmin();
 
