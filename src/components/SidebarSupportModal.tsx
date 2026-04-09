@@ -120,17 +120,30 @@ export default function SidebarSupportModal({
               {/* Subject */}
               <label className="grid gap-1.5 text-sm">
                 <span className="text-[var(--muted)]">Subject</span>
-                <select
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  disabled={sending}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 pr-8 text-sm outline-none"
-                >
-                  <option value="Question">Question</option>
-                  <option value="Bug Report">Bug Report</option>
-                  <option value="Feature Request">Feature Request</option>
-                  <option value="Other">Other</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    disabled={sending}
+                    className="w-full appearance-none rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 pr-10 text-sm outline-none"
+                  >
+                    <option value="Question">Question</option>
+                    <option value="Bug Report">Bug Report</option>
+                    <option value="Feature Request">Feature Request</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M2 4l4 4 4-4"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
               </label>
 
               {/* Message */}
