@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+  <img src="public/TC_Logo.png" alt="True Competency" width="160" />
+</p>
 
-## Getting Started
+# True Competency
 
-First, run the development server:
+**Clinical competency training platform for interventional cardiology.**  
+Built for the Asia Pacific Society of Cardiology (APSC) TCIP IVUS Course.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🌐 [truecompetency.com](https://www.truecompetency.com)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What is True Competency?
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+True Competency is a structured, competency-based training platform designed for interventional cardiology education. It supports a full training workflow across three roles — trainees, instructors, and committee members — built around a curriculum of 114 clinical competencies assessed through case-based questions.
 
-## Learn More
+The platform is developed in partnership with the **Asia Pacific Society of Cardiology (APSC)** and the **Transcatheter Cardiovascular Imaging and Physiology (TCIP)** program, and is housed at the **Dobson Centre for Entrepreneurship at McGill University**.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### For Trainees
+- Browse and enroll in competencies ordered by clinical curriculum position
+- Answer case-based multiple choice questions with instant feedback
+- Track progress across enrolled competencies with per-difficulty breakdowns
+- View accuracy rates, activity history, and global leaderboard rankings
 
-## Deploy on Vercel
+### For Instructors
+- Monitor enrolled trainee progress in real time
+- Assign competencies to trainees
+- View detailed per-trainee completion stats
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### For Committee Members
+- Propose, review, and vote on new competencies and questions
+- Manage tags and curriculum structure
+- Chair committee can publish directly, reorder competencies, and manage members
+- Full review queue with voting workflow
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Database | Supabase (PostgreSQL + RLS) |
+| Auth | Supabase Auth |
+| Hosting | Vercel |
+| Styling | Tailwind CSS |
+| Charts | Recharts |
+| Email | Resend |
+| Storage | Supabase Storage |
+
+---
+
+## Roles
+
+| Role | Description |
+|---|---|
+| `trainee` | Enrolls in competencies, answers questions, tracks progress |
+| `instructor` | Monitors and manages assigned trainees |
+| `committee` / `editor` | Proposes and reviews competencies and questions |
+| `committee` / `chief_editor` | Full chair privileges — publish, reorder, manage |
+| `admin` | Platform administration |
+
+---
+
+## Contributing
+
+This is a private platform under active development. Contributions are by invitation only.  
+For questions or partnership inquiries, contact [contact@truecompetency.com](mailto:contact@truecompetency.com).
+
+---
+
+## Team
+
+Built by **Murad Novruzov** (Chief Technical Officer) in collaboration with  
+**Marc James de Man** (Co-founder) and **Dr. Kwan Lee** (Co-founder, Chief Medical Officer).
+
+---
+
+## License
+
+All rights reserved. © 2026 True Competency.  
+This codebase is not open source. Unauthorized use, copying, or distribution is prohibited.
