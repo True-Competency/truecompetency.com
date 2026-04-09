@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getSupabaseServer } from "@/lib/supabaseServer";
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? "");
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL;
+
 const ALLOWED_SUBJECTS = new Set([
   "Question",
   "Bug Report",
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const resend = new Resend(process.env.RESEND_API_KEY ?? "");
     await resend.emails.send({
       to: SUPPORT_EMAIL,
       from: "True Competency <noreply@truecompetency.com>",
