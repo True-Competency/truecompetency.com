@@ -54,7 +54,7 @@ function RoleChip({
         "px-4 py-2 text-sm font-medium transition-all duration-300 relative overflow-hidden",
         active
           ? "bg-[#5170ff] text-white shadow-lg shadow-[#5170ff]/25"
-          : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200",
+          : "bg-[var(--field)] text-[var(--foreground)] hover:bg-[var(--border)] border border-[var(--border)]",
       ].join(" ")}
       style={{ borderRadius: "20px" }}
     >
@@ -84,7 +84,9 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <input
         type={type}
         value={value}
@@ -92,7 +94,7 @@ function Field({
         placeholder={placeholder}
         autoComplete={autoComplete}
         required={required}
-        className="w-full px-4 py-3 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+        className="w-full px-4 py-3 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
         style={{ borderRadius: "16px" }}
       />
     </div>
@@ -116,7 +118,9 @@ function PasswordField({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <div className="relative">
         <input
           type={show ? "text" : "password"}
@@ -125,14 +129,14 @@ function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           required
-          className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+          className="w-full px-4 py-3 pr-12 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
           style={{ borderRadius: "16px" }}
         />
         <button
           type="button"
           aria-label={show ? "Hide password" : "Show password"}
           onClick={() => setShow((s) => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
         >
           {show ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -381,15 +385,25 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
       <style jsx global>{`
         @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(30px, -30px) scale(1.1); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          50% {
+            transform: translate(30px, -30px) scale(1.1);
+          }
         }
         @keyframes float-delayed {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-30px, 30px) scale(1.1); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          50% {
+            transform: translate(-30px, 30px) scale(1.1);
+          }
         }
         .animate-float {
           animation: float 20s ease-in-out infinite;
@@ -411,26 +425,31 @@ export default function SignUpPage() {
               className="drop-shadow-2xl"
             />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+              <h1 className="text-3xl font-bold text-[var(--foreground)] mb-1">
                 True Competency
               </h1>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[var(--muted)]">
                 TCIP APSC IVUS Competency Platform
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white shadow-2xl overflow-hidden" style={{ borderRadius: "40px" }}>
+        <div
+          className="bg-[var(--surface)] shadow-2xl overflow-hidden"
+          style={{ borderRadius: "40px" }}
+        >
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
-                <p className="text-gray-600 mt-2">Set up your profile</p>
+                <h2 className="text-3xl font-bold text-[var(--foreground)]">
+                  Create Account
+                </h2>
+                <p className="text-[var(--muted)] mt-2">Set up your profile</p>
               </div>
 
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                   I am a:
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -473,8 +492,13 @@ export default function SignUpPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Country</label>
-                  <div className="border border-gray-200 bg-white p-2" style={{ borderRadius: "16px" }}>
+                  <label className="text-sm font-medium text-[var(--muted)]">
+                    Country
+                  </label>
+                  <div
+                    className="border border-[var(--border)] bg-[var(--field)] p-2"
+                    style={{ borderRadius: "16px" }}
+                  >
                     <CountrySelect
                       value={countryCode || null}
                       onChange={onCountryChange}
@@ -538,9 +562,12 @@ export default function SignUpPage() {
                     id="terms"
                     checked={agreeToTerms}
                     onChange={(e) => setAgreeToTerms(e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded border-gray-300 text-[#5170ff] focus:ring-[#5170ff]"
+                    className="mt-1 w-4 h-4 rounded border-[var(--border)] text-[#5170ff] focus:ring-[#5170ff]"
                   />
-                  <label htmlFor="terms" className="text-sm text-gray-600">
+                  <label
+                    htmlFor="terms"
+                    className="text-sm text-[var(--muted)]"
+                  >
                     I agree to the{" "}
                     <a
                       href="/terms"
@@ -554,8 +581,11 @@ export default function SignUpPage() {
                 </div>
 
                 {msg && (
-                  <div className="p-3 bg-red-50 border border-red-200" style={{ borderRadius: "12px" }}>
-                    <p className="text-sm text-red-600">{msg}</p>
+                  <div
+                    className="p-3 border border-[color:var(--err)]/30 bg-[color:var(--err)]/10"
+                    style={{ borderRadius: "12px" }}
+                  >
+                    <p className="text-sm text-[var(--err)]">{msg}</p>
                   </div>
                 )}
 
@@ -569,7 +599,7 @@ export default function SignUpPage() {
                 </button>
               </form>
 
-              <p className="mt-6 text-center text-sm text-gray-600">
+              <p className="mt-6 text-center text-sm text-[var(--muted)]">
                 Already have an account?{" "}
                 <Link
                   href={`/signin?redirect=${encodeURIComponent(redirect || "/")}`}
@@ -580,7 +610,7 @@ export default function SignUpPage() {
               </p>
             </div>
 
-            <div className="hidden lg:block bg-gray-50 p-8">
+            <div className="hidden lg:block bg-[var(--field)] p-8">
               <SignUpRightPanel role={role} />
             </div>
           </div>
