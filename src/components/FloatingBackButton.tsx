@@ -29,7 +29,7 @@ export default function FloatingBackButton() {
       aria-label="Go back"
       title="Go back"
       onClick={onBack}
-      className="fixed left-5 top-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-white text-black shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_20%,transparent),0_14px_30px_rgba(81,112,255,0.24)]"
+      className="fixed left-5 top-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_20%,transparent),0_14px_30px_rgba(81,112,255,0.24)]"
     >
       <ArrowLeft className="h-5 w-5" strokeWidth={2.5} />
     </button>
