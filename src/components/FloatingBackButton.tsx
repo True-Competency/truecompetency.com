@@ -3,31 +3,10 @@
 import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
-const HIDDEN_EXACT_PATHS = new Set<string>([
-  "/",
-  "/about",
-  "/signin",
-  "/signup",
-  "/committee",
-  "/committee/competencies",
-  "/committee/review-queue",
-  "/committee/review-queue/competencies",
-  "/committee/review-queue/questions",
-  "/committee/members",
-  "/committee/tags",
-  "/admin",
-  "/instructor",
-  "/trainee",
-]);
+const SHOW_ONLY_PATHS = new Set<string>(["/account", "/settings"]);
 
 function shouldHide(pathname: string): boolean {
-  if (HIDDEN_EXACT_PATHS.has(pathname)) return true;
-
-  // Hide on all committee sidebar pages.
-  if (pathname.startsWith("/committee/")) return true;
-  if (pathname.startsWith("/admin/")) return true;
-
-  return false;
+  return !SHOW_ONLY_PATHS.has(pathname);
 }
 
 export default function FloatingBackButton() {
