@@ -1,5 +1,6 @@
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, avatarLimiter } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServer();
@@ -10,6 +11,16 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimitResult = await checkRateLimit(avatarLimiter, user.id);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+      },
+      { status: 429 },
+    );
   }
 
   const { storagePath } = await req.json();
