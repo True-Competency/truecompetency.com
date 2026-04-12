@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getSupabaseServer } from "@/lib/supabaseServer";
+import { checkRateLimit, supportLimiter } from "@/lib/rateLimit";
 
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL;
 
@@ -28,6 +29,16 @@ export async function POST(req: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResult = await checkRateLimit(supportLimiter, user.id);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+        },
+        { status: 429 },
+      );
     }
 
     const body = (await req.json()) as {
