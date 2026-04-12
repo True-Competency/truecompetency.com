@@ -1,5 +1,6 @@
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, uploadLimiter } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServer();
@@ -23,6 +24,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Forbidden: committee only" },
       { status: 403 },
+    );
+  }
+
+  const rateLimitResult = await checkRateLimit(uploadLimiter, user.id);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+      },
+      { status: 429 },
     );
   }
 
