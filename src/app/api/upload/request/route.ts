@@ -1,5 +1,6 @@
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, uploadLimiter } from "@/lib/rateLimit";
 
 // Allowed MIME types for question media uploads
 const ALLOWED_MIME_TYPES = [
@@ -47,6 +48,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Forbidden: committee only" },
       { status: 403 },
+    );
+  }
+
+  const rateLimitResult = await checkRateLimit(uploadLimiter, user.id);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+      },
+      { status: 429 },
     );
   }
 
