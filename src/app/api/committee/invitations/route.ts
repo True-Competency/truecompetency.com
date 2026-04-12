@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseServer } from "@/lib/supabaseServer";
+import { checkRateLimit, invitationLimiter } from "@/lib/rateLimit";
 
 function isValidEmail(email: string) {
   return /^\S+@\S+\.\S+$/.test(email);
@@ -44,6 +45,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Only the committee chair can send invitations." },
       { status: 403 },
+    );
+  }
+
+  const rateLimitResult = await checkRateLimit(invitationLimiter, user.id);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+      },
+      { status: 429 },
     );
   }
 
