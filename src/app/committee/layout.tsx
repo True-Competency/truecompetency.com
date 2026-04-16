@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  Settings,
 } from "lucide-react";
 import SidebarSupportModal from "@/components/SidebarSupportModal";
 
@@ -325,6 +326,19 @@ export default function CommitteeLayout({
               {!collapsed && <span>Tags</span>}
             </Link>
           )}
+
+          <Link
+            href="/settings"
+            title="Profile & Settings"
+            className={`${navLinkBase} ${
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/settings", true) ? navActive : navIdle}`}
+          >
+            <Settings size={16} />
+            {!collapsed && <span>Profile & Settings</span>}
+          </Link>
         </nav>
 
         <div className="px-3 pb-3">

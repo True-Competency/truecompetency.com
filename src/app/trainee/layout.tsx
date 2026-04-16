@@ -16,6 +16,7 @@ import {
   PanelLeftOpen,
   X,
   Bell,
+  Settings,
 } from "lucide-react";
 import SidebarSupportModal from "@/components/SidebarSupportModal";
 
@@ -293,16 +294,16 @@ export default function TraineeLayout({
 
           {/* Profile */}
           <Link
-            href="/account"
-            title="Profile"
+            href="/settings"
+            title="Profile & Settings"
             className={`${navLinkBase} ${
               collapsed
                 ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
                 : ""
-            } ${isActive("/account", true) ? navActive : navIdle}`}
+            } ${isActive("/settings", true) ? navActive : navIdle}`}
           >
-            <UserCircle2 size={16} />
-            {!collapsed && <span>Profile</span>}
+            <Settings size={16} />
+            {!collapsed && <span>Profile & Settings</span>}
           </Link>
         </nav>
 
