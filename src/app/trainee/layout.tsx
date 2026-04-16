@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  Bell,
 } from "lucide-react";
 import SidebarSupportModal from "@/components/SidebarSupportModal";
 
@@ -274,6 +275,20 @@ export default function TraineeLayout({
           >
             <BarChart2 size={16} />
             {!collapsed && <span>My Progress</span>}
+          </Link>
+
+          {/* Notifications — logs & alerts */}
+          <Link
+            href="/trainee/notifications"
+            title="Activity"
+            className={`${navLinkBase} ${
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/trainee/notifications") ? navActive : navIdle}`}
+          >
+            <Bell size={16} />
+            {!collapsed && <span>Activity</span>}
           </Link>
 
           {/* Profile */}
