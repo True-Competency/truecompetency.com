@@ -637,7 +637,7 @@ export default function AccountClient({ email }: Props) {
             <button
               type="submit"
               disabled={profileSaving}
-              className="w-36rounded-xl py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+              className="w-36 rounded-xl py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 ml-auto block"
               style={{ background: "var(--accent)" }}
             >
               {profileSaving ? "Saving…" : "Save profile"}
@@ -711,7 +711,7 @@ export default function AccountClient({ email }: Props) {
             <button
               type="submit"
               disabled={!canSubmitPwd || pwdLoading}
-              className="w-36 rounded-xl py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+              className="w-36 rounded-xl py-3 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 ml-auto block"
               style={{ background: "var(--accent)" }}
             >
               {pwdLoading ? "Updating…" : "Update password"}
