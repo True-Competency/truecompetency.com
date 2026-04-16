@@ -492,25 +492,28 @@ export default function TraineeDashboard() {
       <div className="mx-auto max-w-6xl px-6 py-8 space-y-6">
         {/* ── Error banner ── */}
         {err && (
-          <div className="rounded-xl border border-red-900/40 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          <div className="mb-6 rounded-2xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-4 py-3 text-sm text-[color:var(--err)]">
             {err}
           </div>
         )}
 
         {/* ── Page header ── */}
-        <div>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+        <div className="mb-8">
+          <h1
+            className="text-3xl font-bold tracking-tight text-[var(--foreground)]"
+            style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+          >
             {loading
               ? "Welcome back"
               : displayName
                 ? `Welcome back, ${displayName.split(" ")[0]}`
                 : "Welcome back"}
           </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Here&apos;s your training overview — track your progress, see where
-            you stand, and keep pushing forward.
-          </p>
           <div className="accent-underline mt-3" />
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Here is your training overview: track your progress, see where you
+            stand, and keep pushing forward.
+          </p>
         </div>
 
         {/* ── 6 KPI stat cards ── */}
@@ -683,7 +686,7 @@ export default function TraineeDashboard() {
 
         {/* ── Tag breakdown horizontal bar chart — only renders if trainee has enrolled comps with tags ── */}
         {(loading || tagBreakdown.length > 0) && (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="card p-5">
             <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
               Topics
             </div>
@@ -783,12 +786,12 @@ function StatCard({
   subtitle?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3">
+    <div className="card p-4 flex flex-col gap-3">
       {/* Tinted icon chip */}
       <div
-        className="h-9 w-9 rounded-xl grid place-items-center flex-shrink-0"
+        className="w-10 h-10 rounded-full grid place-items-center flex-shrink-0"
         style={{
-          background: `color-mix(in oklab, ${color} 15%, transparent)`,
+          background: `color-mix(in oklab, ${color} 18%, transparent)`,
           color,
         }}
       >
@@ -885,7 +888,7 @@ function CountryLeaderboardCard({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="card p-4">
       <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
         Country Leaderboard
       </div>
@@ -930,7 +933,7 @@ function TraineeLeaderboardCard({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="card p-4">
       <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
         Top Trainees
       </div>
