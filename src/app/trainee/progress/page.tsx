@@ -5,7 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
-import { Search, X, CheckCircle2, Clock, BookOpen } from "lucide-react";
+import {
+  Search,
+  X,
+  CheckCircle2,
+  Clock,
+  BookOpen,
+  MinusCircle,
+  Target,
+} from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -310,21 +318,25 @@ export default function TraineeProgressPage() {
             label="Enrolled"
             value={enrolled.length}
             color="var(--foreground)"
+            icon={<BookOpen size={18} />}
           />
           <StatChip
             label="Completed"
             value={completedCount}
             color="var(--ok)"
+            icon={<CheckCircle2 size={18} />}
           />
           <StatChip
             label="In Progress"
             value={inProgressCount}
             color="var(--accent)"
+            icon={<Clock size={18} />}
           />
           <StatChip
             label="Not Started"
             value={notStartedCount}
             color="var(--muted)"
+            icon={<MinusCircle size={18} />}
           />
           <StatChip
             label={`${totalAnswered} / ${totalQuestions} questions`}
@@ -334,16 +346,16 @@ export default function TraineeProgressPage() {
                 : "0%"
             }
             color="var(--warn)"
-            valueIsString
+            icon={<Target size={18} />}
           />
         </div>
       )}
 
       {/* ── Filters ── */}
-      <div className="mb-4 flex-shrink-0 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Search */}
-          <div className="relative flex-1 min-w-48">
+      <div className="mb-4 flex-shrink-0 space-y-2">
+        {/* Row 1: search + clear */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
             <Search
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
@@ -355,8 +367,23 @@ export default function TraineeProgressPage() {
               className="w-full pl-9 pr-3 py-2 rounded-full border border-[var(--border)] bg-[var(--field)] text-sm outline-none focus:border-[color:var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_18%,transparent)] transition-all"
             />
           </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-all"
+            >
+              <X size={12} />
+              Clear
+            </button>
+          )}
+        </div>
 
-          {/* Status filter */}
+        {/* Row 2: Status + Difficulty inline with labels */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-[var(--muted)] flex-shrink-0">
+            Status:
+          </span>
           {(
             [
               { label: "All", value: "all" as StatusFilter },
@@ -379,43 +406,57 @@ export default function TraineeProgressPage() {
             </button>
           ))}
 
-          {/* Difficulty filter */}
+          <span className="text-xs text-[var(--muted)] flex-shrink-0 ml-2">
+            Difficulty:
+          </span>
           {(
             [
-              { label: "All", value: "all" as DiffFilter },
-              { label: "Beginner", value: "beginner" as DiffFilter },
-              { label: "Intermediate", value: "intermediate" as DiffFilter },
-              { label: "Expert", value: "expert" as DiffFilter },
+              { label: "All", value: "all" as DiffFilter, color: null },
+              {
+                label: "Beginner",
+                value: "beginner" as DiffFilter,
+                color: "var(--ok)",
+              },
+              {
+                label: "Intermediate",
+                value: "intermediate" as DiffFilter,
+                color: "var(--warn)",
+              },
+              {
+                label: "Expert",
+                value: "expert" as DiffFilter,
+                color: "var(--err)",
+              },
             ] as const
-          ).map(({ label, value }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setDiffFilter(value)}
-              className={cls(
-                "rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
-                diffFilter === value
-                  ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                  : "border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-all"
-            >
-              <X size={12} />
-              Clear
-            </button>
-          )}
+          ).map(({ label, value, color }) => {
+            const isActive = diffFilter === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDiffFilter(value)}
+                className="rounded-full px-3 py-1.5 text-xs font-medium border transition-all"
+                style={
+                  isActive
+                    ? {
+                        background: `color-mix(in oklab, ${color ?? "var(--accent)"} 15%, transparent)`,
+                        borderColor: color ?? "var(--accent)",
+                        color: color ?? "var(--accent)",
+                      }
+                    : {
+                        background: "var(--field)",
+                        borderColor: "var(--border)",
+                        color: "var(--foreground)",
+                      }
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Tag chips */}
+        {/* Row 3: Tags */}
         {tagOptions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {tagOptions.map((t) => (
@@ -679,19 +720,32 @@ function StatChip({
   label,
   value,
   color,
-  valueIsString = false,
+  icon,
 }: {
   label: string;
   value: number | string;
   color: string;
-  valueIsString?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 flex flex-col gap-1">
-      <span className="text-2xl font-bold tabular-nums" style={{ color }}>
+    <div className="card p-4 flex flex-col gap-3">
+      {/* Icon chip — matches dashboard StatCard */}
+      <div
+        className="w-10 h-10 rounded-full grid place-items-center flex-shrink-0"
+        style={{
+          background: `color-mix(in oklab, ${color} 18%, transparent)`,
+          color,
+        }}
+      >
+        {icon}
+      </div>
+      <span
+        className="text-3xl font-bold tabular-nums tracking-tight"
+        style={{ color }}
+      >
         {value}
       </span>
-      <span className="text-xs text-[var(--muted)]">{label}</span>
+      <span className="text-xs text-[var(--muted)] font-medium">{label}</span>
     </div>
   );
 }

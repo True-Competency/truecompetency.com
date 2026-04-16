@@ -469,7 +469,7 @@ export default function TraineeCompetenciesPage() {
 
       {/* ── Filters ── */}
       <div className="mb-4 flex-shrink-0 space-y-2">
-        {/* Search + clear */}
+        {/* Row 1: search + clear */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search
@@ -495,79 +495,86 @@ export default function TraineeCompetenciesPage() {
           )}
         </div>
 
-        {/* Status + Difficulty + Tags — all in one row */}
+        {/* Row 2: Status + Difficulty inline with labels */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-[var(--muted)] flex-shrink-0">
             Status:
           </span>
           {(
-            ["all", "available", "enrolled", "completed"] as StatusFilter[]
-          ).map((s) => (
+            [
+              { label: "All", value: "all" as StatusFilter },
+              { label: "In Progress", value: "in_progress" as StatusFilter },
+              { label: "Completed", value: "completed" as StatusFilter },
+            ] as const
+          ).map(({ label, value }) => (
             <button
-              key={s}
+              key={value}
               type="button"
-              onClick={() => setStatusFilter(s)}
+              onClick={() => setStatusFilter(value)}
               className={cls(
                 "rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
-                statusFilter === s
+                statusFilter === value
                   ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
                   : "border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]",
               )}
             >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {label}
             </button>
           ))}
 
           <span className="text-xs text-[var(--muted)] flex-shrink-0 ml-2">
             Difficulty:
           </span>
-          {(["all", "beginner", "intermediate", "expert"] as DiffFilter[]).map(
-            (d) => {
-              const color =
-                d === "beginner"
-                  ? "var(--ok)"
-                  : d === "intermediate"
-                    ? "var(--warn)"
-                    : d === "expert"
-                      ? "var(--err)"
-                      : null;
-              const isActive = diffFilter === d;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDiffFilter(d)}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium border transition-all"
-                  style={
-                    isActive && color
-                      ? { background: color, borderColor: color, color: "#000" }
-                      : isActive
-                        ? {
-                            background:
-                              "color-mix(in oklab, var(--accent) 15%, transparent)",
-                            borderColor: "var(--accent)",
-                            color: "var(--accent)",
-                          }
-                        : {
-                            background: "var(--field)",
-                            borderColor: "var(--border)",
-                            color: "var(--foreground)",
-                          }
-                  }
-                >
-                  {d === "all" ? "All" : d.charAt(0).toUpperCase() + d.slice(1)}
-                </button>
-              );
-            },
-          )}
+          {(
+            [
+              { label: "All", value: "all" as DiffFilter, color: null },
+              {
+                label: "Beginner",
+                value: "beginner" as DiffFilter,
+                color: "var(--ok)",
+              },
+              {
+                label: "Intermediate",
+                value: "intermediate" as DiffFilter,
+                color: "var(--warn)",
+              },
+              {
+                label: "Expert",
+                value: "expert" as DiffFilter,
+                color: "var(--err)",
+              },
+            ] as const
+          ).map(({ label, value, color }) => {
+            const isActive = diffFilter === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDiffFilter(value)}
+                className="rounded-full px-3 py-1.5 text-xs font-medium border transition-all"
+                style={
+                  isActive
+                    ? {
+                        background: `color-mix(in oklab, ${color ?? "var(--accent)"} 15%, transparent)`,
+                        borderColor: color ?? "var(--accent)",
+                        color: color ?? "var(--accent)",
+                      }
+                    : {
+                        background: "var(--field)",
+                        borderColor: "var(--border)",
+                        color: "var(--foreground)",
+                      }
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Tags */}
+        {/* Row 3: Tags */}
         {tagOptions.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-[var(--muted)] w-16 flex-shrink-0">
-              Tags:
-            </span>
+          <div className="flex flex-wrap gap-1.5">
             {tagOptions.map((t) => (
               <button
                 key={t.id}
