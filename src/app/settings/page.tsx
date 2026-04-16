@@ -695,7 +695,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={profileSaving}
-                    className="w-36 rounded-xl py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+                    className="w-36 rounded-full py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
                     style={{ background: "var(--accent)" }}
                   >
                     {profileSaving ? "Saving…" : "Save profile"}
@@ -775,7 +775,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={!canSubmitPwd || pwdLoading}
-                    className="w-36 rounded-xl py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+                    className="w-36 rounded-full py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
                     style={{ background: "var(--accent)" }}
                   >
                     {pwdLoading ? "Updating…" : "Update password"}
@@ -805,7 +805,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="w-36 flex-shrink-0 rounded-xl py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90"
+                  className="w-36 flex-shrink-0 rounded-full py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90"
                   style={{ background: "var(--err)" }}
                 >
                   Delete account
@@ -915,7 +915,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={onDeleteAccount}
                 disabled={deleteConfirmText !== "DELETE" || deleting}
-                className="w-36 rounded-xl py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+                className="w-36 rounded-full py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
                 style={{ background: "var(--err)" }}
               >
                 {deleting ? "Deleting…" : "Delete account"}
