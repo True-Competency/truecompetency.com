@@ -249,20 +249,6 @@ export default function TraineeLayout({
             {!collapsed && <span>Dashboard</span>}
           </Link>
 
-          {/* Competencies — browse & enroll */}
-          <Link
-            href="/trainee/competencies"
-            title="Competencies"
-            className={`${navLinkBase} ${
-              collapsed
-                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
-                : ""
-            } ${isActive("/trainee/competencies") ? navActive : navIdle}`}
-          >
-            <BookOpen size={16} />
-            {!collapsed && <span>Competencies</span>}
-          </Link>
-
           {/* Progress — in-progress & completed */}
           <Link
             href="/trainee/progress"
@@ -275,6 +261,20 @@ export default function TraineeLayout({
           >
             <BarChart2 size={16} />
             {!collapsed && <span>My Progress</span>}
+          </Link>
+
+          {/* Competencies — browse & enroll */}
+          <Link
+            href="/trainee/competencies"
+            title="Competencies"
+            className={`${navLinkBase} ${
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isActive("/trainee/competencies") ? navActive : navIdle}`}
+          >
+            <BookOpen size={16} />
+            {!collapsed && <span>Competencies</span>}
           </Link>
 
           {/* Notifications — logs & alerts */}
