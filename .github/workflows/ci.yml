@@ -10,6 +10,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch: # manual trigger from GitHub Actions tab
 
 jobs:
   # ── Unit tests ────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ jobs:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     needs: build # only run E2E if build passes
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     env:
       # Staging environment — never production
