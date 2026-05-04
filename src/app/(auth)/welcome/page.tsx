@@ -220,23 +220,44 @@ export default function WelcomePage() {
 
     let subscription: { unsubscribe: () => void } | null = null;
 
-    // Sign out existing session first so invite token can create a fresh one
-    supabase.auth.signOut().then(async () => {
-      // Manually process the invite token from URL hash if present
+    async function init() {
+      // ── Step 1: Extract invite tokens from URL hash BEFORE doing anything else ──
       const hash = window.location.hash;
-      if (hash) {
-        const hashParams = new URLSearchParams(hash.substring(1));
-        const accessToken = hashParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token");
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const type = hashParams.get("type"); // will be "invite"
 
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-        }
+      // ── Step 2: Only sign out if there is NO invite token in the URL ──
+      // If we sign out while an invite token is present, we kill the session
+      if (!accessToken) {
+        await supabase.auth.signOut();
       }
 
+      // ── Step 3: Set session from invite token ──
+      if (accessToken && refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) {
+          // Token is expired or invalid — show clear message, stop spinner
+          setMsg(
+            "This invitation link has expired. Please contact the committee chair to send a new invitation to your email.",
+          );
+          setLoading(false);
+          return;
+        }
+      } else if (!accessToken) {
+        // No token in URL and no existing session — direct navigation to /welcome
+        setMsg(
+          "This page is only accessible via an invitation link. Please check your email.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      // ── Step 4: Listen for auth state ──
       const { data } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           if (event === "SIGNED_IN" && session?.user) {
@@ -246,9 +267,10 @@ export default function WelcomePage() {
               string,
               unknown
             >;
-
             const profileRole =
               typeof metadata.role === "string" ? metadata.role : null;
+
+            // Non-committee user landed here — send them away
             if (profileRole && profileRole !== "committee") {
               router.replace("/signin");
               return;
@@ -257,14 +279,20 @@ export default function WelcomePage() {
             setEmail(user.email ?? invitedEmail ?? "");
             setInfo("Complete your invited committee account to continue.");
             setLoading(false);
-          } else if (event === "INITIAL_SESSION") {
-            if (!session) setLoading(false);
+          } else if (event === "INITIAL_SESSION" && !session) {
+            // Should not happen if setSession succeeded, but just in case
+            setMsg(
+              "Failed to establish your invitation session. Please try clicking the link again.",
+            );
+            setLoading(false);
           }
         },
       );
-      subscription = data.subscription;
-    });
 
+      subscription = data.subscription;
+    }
+
+    void init();
     return () => subscription?.unsubscribe();
   }, [router]);
 
@@ -320,11 +348,9 @@ export default function WelcomePage() {
       });
       if (authError) throw authError;
 
-      await ensureProfile(supabase, "committee");
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
           email: user.email ?? email.trim(),
           role: "committee",
           committee_role: "editor",
@@ -334,8 +360,9 @@ export default function WelcomePage() {
           country_code: countryCode,
           country_name: countryName,
           hospital: hospital.trim(),
-        })
-        .eq("id", user.id);
+        },
+        { onConflict: "id" },
+      );
       if (profileError) throw profileError;
 
       setInfo("Welcome aboard. Redirecting to the committee dashboard…");
