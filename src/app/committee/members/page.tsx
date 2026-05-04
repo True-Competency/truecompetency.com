@@ -17,6 +17,8 @@ import {
   Hospital,
   Plus,
   X,
+  Clock,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -37,9 +39,16 @@ type Member = {
   votes_cast: number;
 };
 
+type PendingInvite = {
+  id: string;
+  email: string;
+  invited_at: string;
+  hours_since_invite: number;
+};
+
 // ── Avatar color ───────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "#5170ff", // accent
+  "#5170ff",
   "#7c3aed",
   "#0891b2",
   "#059669",
@@ -51,7 +60,6 @@ const AVATAR_COLORS = [
 
 function avatarColor(m: Member): string {
   if (m.committee_role === "chief_editor") return "var(--warn)";
-  // stable color derived from the UUID's first char code
   const idx = m.id.charCodeAt(0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[idx];
 }
@@ -71,10 +79,20 @@ function getDisplayName(m: Member): string {
   );
 }
 
+function formatTimeAgo(hours: number): string {
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function CommitteeMembers() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingLoading, setPendingLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [isChairViewer, setIsChairViewer] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -86,6 +104,12 @@ export default function CommitteeMembers() {
   const [inviteErr, setInviteErr] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
 
+  // Re-invite state
+  const [reinvitingId, setReinvitingId] = useState<string | null>(null);
+  const [reinviteMsg, setReinviteMsg] = useState<string | null>(null);
+  const [reinviteErr, setReinviteErr] = useState<string | null>(null);
+
+  // ── Fetch members ──────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -93,7 +117,6 @@ export default function CommitteeMembers() {
         setLoading(true);
         setErr(null);
 
-        // Fetch all committee member profiles
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
           .select(
@@ -113,7 +136,6 @@ export default function CommitteeMembers() {
           return;
         }
 
-        // Fetch stats in parallel
         const [compStage, qStage, compVotes, qVotes] = await Promise.all([
           supabase
             .from("competencies_stage")
@@ -162,7 +184,6 @@ export default function CommitteeMembers() {
           votes_cast: voteCounts[m.id] ?? 0,
         }));
 
-        // Sort: chair first, then alphabetically
         enriched.sort((a, b) => {
           if (
             a.committee_role === "chief_editor" &&
@@ -189,6 +210,7 @@ export default function CommitteeMembers() {
     };
   }, []);
 
+  // ── Fetch chair status + pending invites ───────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -202,10 +224,27 @@ export default function CommitteeMembers() {
         .eq("id", uid)
         .maybeSingle<{ role: string | null; committee_role: string | null }>();
 
-      if (!cancelled) {
-        setIsChairViewer(
-          me?.role === "committee" && me?.committee_role === "chief_editor",
-        );
+      const isChair =
+        me?.role === "committee" && me?.committee_role === "chief_editor";
+      if (!cancelled) setIsChairViewer(isChair);
+
+      // Only chairs can see pending invites
+      if (isChair && !cancelled) {
+        setPendingLoading(true);
+        try {
+          const res = await fetch("/api/committee/pending-invites");
+          const json = (await res.json()) as {
+            pending?: PendingInvite[];
+            error?: string;
+          };
+          if (res.ok && json.pending && !cancelled) {
+            setPendingInvites(json.pending);
+          }
+        } catch {
+          // Non-critical — don't block the page
+        } finally {
+          if (!cancelled) setPendingLoading(false);
+        }
       }
     })();
     return () => {
@@ -213,6 +252,7 @@ export default function CommitteeMembers() {
     };
   }, []);
 
+  // ── Invite handlers ────────────────────────────────────────────────────
   function resetInviteModal() {
     setInviteMode("external");
     setInviteEmail("");
@@ -243,18 +283,14 @@ export default function CommitteeMembers() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const json = (await res.json().catch(() => null)) as
-        | { error?: string; message?: string }
-        | null;
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
 
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to send invitation.");
-      }
+      if (!res.ok) throw new Error(json?.error || "Failed to send invitation.");
 
-      setInviteMsg(
-        json?.message ||
-          `Invitation sent to ${email}. They can accept it from their email inbox.`,
-      );
+      setInviteMsg(json?.message || `Invitation sent to ${email}.`);
       setInviteEmail("");
     } catch (error) {
       setInviteErr(
@@ -265,6 +301,36 @@ export default function CommitteeMembers() {
     }
   }
 
+  // ── Re-invite handler ──────────────────────────────────────────────────
+  async function handleReinvite(invite: PendingInvite) {
+    setReinvitingId(invite.id);
+    setReinviteMsg(null);
+    setReinviteErr(null);
+
+    try {
+      const res = await fetch("/api/committee/reinvite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: invite.email, userId: invite.id }),
+      });
+      const json = (await res.json()) as { error?: string; message?: string };
+
+      if (!res.ok) throw new Error(json.error || "Failed to re-invite.");
+
+      // Remove from pending list and show success
+      setPendingInvites((prev) => prev.filter((p) => p.id !== invite.id));
+      setReinviteMsg(`Re-invitation sent to ${invite.email}.`);
+      setTimeout(() => setReinviteMsg(null), 4000);
+    } catch (error) {
+      setReinviteErr(
+        error instanceof Error ? error.message : "Failed to re-invite.",
+      );
+      setTimeout(() => setReinviteErr(null), 5000);
+    } finally {
+      setReinvitingId(null);
+    }
+  }
+
   const chair = members.find((m) => m.committee_role === "chief_editor");
   const regularMembers = members.filter(
     (m) => m.committee_role !== "chief_editor",
@@ -272,7 +338,7 @@ export default function CommitteeMembers() {
 
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1
@@ -301,9 +367,22 @@ export default function CommitteeMembers() {
         )}
       </div>
 
+      {/* ── Global error ── */}
       {err && (
         <div className="mb-6 rounded-2xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-4 py-3 text-sm text-[var(--err)]">
           {err}
+        </div>
+      )}
+
+      {/* ── Re-invite feedback ── */}
+      {reinviteMsg && (
+        <div className="mb-4 rounded-2xl border border-[color:var(--ok)]/30 bg-[color:var(--ok)]/10 px-4 py-3 text-sm text-[var(--ok)]">
+          {reinviteMsg}
+        </div>
+      )}
+      {reinviteErr && (
+        <div className="mb-4 rounded-2xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-4 py-3 text-sm text-[var(--err)]">
+          {reinviteErr}
         </div>
       )}
 
@@ -311,7 +390,7 @@ export default function CommitteeMembers() {
         <div className="text-sm text-[var(--muted)]">Loading members…</div>
       )}
 
-      {/* ── Chair (featured) ── */}
+      {/* ── Chair ── */}
       {!loading && chair && (
         <div className="mb-8">
           <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4">
@@ -323,7 +402,7 @@ export default function CommitteeMembers() {
 
       {/* ── Regular members ── */}
       {!loading && regularMembers.length > 0 && (
-        <div>
+        <div className="mb-8">
           <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4">
             Members
           </h2>
@@ -341,6 +420,89 @@ export default function CommitteeMembers() {
         </div>
       )}
 
+      {/* ── Pending invitations (chair only) ── */}
+      {isChairViewer && !pendingLoading && pendingInvites.length > 0 && (
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4">
+            Pending Invitations
+          </h2>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)] bg-[var(--field)]/40">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)]">
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-36">
+                    Invited
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-28">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted)] w-32">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingInvites.map((invite) => (
+                  <tr
+                    key={invite.id}
+                    className="border-t border-[var(--border)]"
+                  >
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">
+                      {invite.email}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[var(--muted)] whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={11} />
+                        {formatTimeAgo(invite.hours_since_invite)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        style={{
+                          background:
+                            "color-mix(in oklab, var(--warn) 15%, transparent)",
+                          color: "var(--warn)",
+                        }}
+                      >
+                        <Clock size={10} />
+                        {invite.hours_since_invite >= 24
+                          ? "Expired"
+                          : "Pending"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleReinvite(invite)}
+                        disabled={reinvitingId === invite.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+                      >
+                        <RefreshCw
+                          size={11}
+                          className={
+                            reinvitingId === invite.id ? "animate-spin" : ""
+                          }
+                        />
+                        {reinvitingId === invite.id ? "Sending…" : "Re-invite"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Re-inviting will invalidate the previous link and send a fresh
+            invitation email.
+          </p>
+        </div>
+      )}
+
+      {/* ── Invite modal ── */}
       {inviteOpen && isChairViewer && (
         <div
           role="dialog"
@@ -358,7 +520,7 @@ export default function CommitteeMembers() {
               </h3>
               <button
                 onClick={() => setInviteOpen(false)}
-                className="h-8 w-8 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+                className="h-8 w-8 flex-shrink-0 grid place-items-center rounded-full border border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
               >
                 <X size={14} />
               </button>
@@ -430,7 +592,7 @@ export default function CommitteeMembers() {
                   </div>
                 )}
                 {inviteMsg && (
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--muted)]">
+                  <div className="rounded-xl border border-[color:var(--ok)]/30 bg-[color:var(--ok)]/10 px-3 py-2 text-xs text-[var(--ok)]">
                     {inviteMsg}
                   </div>
                 )}
@@ -462,7 +624,7 @@ export default function CommitteeMembers() {
   );
 }
 
-// ── Member card component ──────────────────────────────────────────────────
+// ── Member card ────────────────────────────────────────────────────────────
 function MemberCard({
   member: m,
   featured = false,
@@ -483,11 +645,8 @@ function MemberCard({
 
   return (
     <div
-      className={`card p-5 flex flex-col gap-4 relative overflow-hidden ${
-        featured ? "sm:flex-row sm:gap-6 sm:p-6" : ""
-      }`}
+      className={`card p-5 flex flex-col gap-4 relative overflow-hidden ${featured ? "sm:flex-row sm:gap-6 sm:p-6" : ""}`}
     >
-      {/* Chair crown badge */}
       {isChair && (
         <div
           className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold"
@@ -501,11 +660,8 @@ function MemberCard({
         </div>
       )}
 
-      {/* Avatar */}
       <div
-        className={`overflow-hidden rounded-full grid place-items-center text-white font-bold flex-shrink-0 shadow-lg ${
-          featured ? "w-20 h-20 text-2xl" : "w-14 h-14 text-lg"
-        }`}
+        className={`overflow-hidden rounded-full grid place-items-center text-white font-bold flex-shrink-0 shadow-lg ${featured ? "w-20 h-20 text-2xl" : "w-14 h-14 text-lg"}`}
         style={{ background: color }}
       >
         {avatarUrl ? (
@@ -520,12 +676,9 @@ function MemberCard({
         )}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div
-          className={`font-semibold text-[var(--foreground)] ${
-            featured ? "text-lg" : "text-sm"
-          }`}
+          className={`font-semibold text-[var(--foreground)] ${featured ? "text-lg" : "text-sm"}`}
         >
           Dr. {getDisplayName(m)}
         </div>
@@ -566,9 +719,7 @@ function MemberCard({
           )}
         </div>
 
-        {/* Divider */}
         <div className="border-t border-[var(--border)] mt-3 pt-3">
-          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <StatPill
               icon={<BookOpen size={11} />}
