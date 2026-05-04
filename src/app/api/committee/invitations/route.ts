@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (
-    profile?.role !== "committee" ||
-    profile?.committee_role !== "chief_editor"
-  ) {
+  const isAdmin = profile?.role === "admin";
+  const isChair =
+    profile?.role === "committee" && profile?.committee_role === "chief_editor";
+  if (!isAdmin && !isChair) {
     return NextResponse.json(
       { error: "Only the committee chair can send invitations." },
       { status: 403 },
