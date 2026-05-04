@@ -32,10 +32,10 @@ export async function GET() {
     );
   }
 
-  if (
-    profile?.role !== "committee" ||
-    profile?.committee_role !== "chief_editor"
-  ) {
+  const isAdmin = profile?.role === "admin";
+  const isChair =
+    profile?.role === "committee" && profile?.committee_role === "chief_editor";
+  if (!isAdmin && !isChair) {
     return NextResponse.json(
       { error: "Only the committee chair can view pending invitations." },
       { status: 403 },

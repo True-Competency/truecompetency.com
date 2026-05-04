@@ -225,7 +225,8 @@ export default function CommitteeMembers() {
         .maybeSingle<{ role: string | null; committee_role: string | null }>();
 
       const isChair =
-        me?.role === "committee" && me?.committee_role === "chief_editor";
+        me?.role === "admin" ||
+        (me?.role === "committee" && me?.committee_role === "chief_editor");
       if (!cancelled) setIsChairViewer(isChair);
 
       // Only chairs can see pending invites
