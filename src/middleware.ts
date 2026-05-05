@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import * as Sentry from "@sentry/nextjs";
 
 const PUBLIC_PATHS = [
   "/signin",
@@ -61,6 +62,10 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (user) {
+    Sentry.setUser({ id: user.id });
+  }
+
   // Unauthed users → redirect if hitting protected pages
   const needsAuth = PROTECT_PREFIXES.some((p) => pathname.startsWith(p));
   if (!user) {
@@ -93,6 +98,8 @@ export async function middleware(req: NextRequest) {
   } catch {
     // ignore, use default
   }
+
+  Sentry.setTag("role", role);
 
   const home = ROLE_HOME[role];
 

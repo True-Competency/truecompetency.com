@@ -11,6 +11,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.51.0",
+    "@supabase/sentry-js-integration": "^0.3.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.96.0",
     "@upstash/ratelimit": "^2.0.8",
