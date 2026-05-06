@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import FloatingBackButton from "@/components/FloatingBackButton";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SentryAuthListener } from "@/components/providers/sentry-auth-listener";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -40,6 +41,7 @@ export default function RootLayout({
           <div className="min-h-svh flex flex-col">
             <FloatingBackButton />
             <main className="flex-1 flex flex-col overflow-x-hidden">
+              <SentryAuthListener />
               {children}
             </main>
             <Analytics />

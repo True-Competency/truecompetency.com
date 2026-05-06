@@ -7,6 +7,7 @@ import countryList from "react-select-country-list";
 import CountrySelect from "@/components/CountrySelect";
 import { ensureProfile } from "@/lib/ensureProfile";
 import { supabase } from "@/lib/supabaseClient";
+import * as Sentry from "@sentry/nextjs";
 
 function Field({
   label,
@@ -260,7 +261,9 @@ export default function WelcomePage() {
       // ── Step 4: Listen for auth state ──
       const { data } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          if (event === "SIGNED_IN" && session?.user) {
+          // Both SIGNED_IN and INITIAL_SESSION (when a session exists) can be the first event we receive
+          // depending on the timing of setSession resolution. Handle both identically.
+          if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
             invitedUserRef.current = session.user;
             const user = session.user;
             const metadata = (user.user_metadata ?? {}) as Record<
@@ -326,50 +329,53 @@ export default function WelcomePage() {
         );
       }
 
-      console.log("WELCOME handleSubmit user:", user?.id, user?.email); // ADD THIS LINE
-
       const { firstName, lastName } = splitName(fullName);
       const countryName =
         countryOptions.find((option) => option.value === countryCode)?.label ??
         null;
 
+      // Step 1: set the password.
+      // updateUser still needs to happen client-side because the auth admin API requires the service role key,
+      // which we never expose to the browser. The trigger on UPDATE syncs email/full_name to profiles automatically.
       const { error: authError } = await supabase.auth.updateUser({
         password,
         data: {
-          role: "committee",
-          committee_role: "editor",
-          first_name: firstName,
-          last_name: lastName,
           full_name: fullName.trim(),
-          country_code: countryCode,
-          country_name: countryName,
-          hospital: hospital.trim(),
         },
       });
       if (authError) throw authError;
 
-      const { error: profileError } = await supabase.from("profiles").upsert(
+      // Step 2: complete the profile via SECURITY DEFINER RPC.
+      // This is the single atomic operation that finalizes the invitation.
+      // RLS does not apply inside the RPC; the function itself verifies auth.uid().
+      const { error: rpcError } = await supabase.rpc(
+        "complete_committee_invitation",
         {
-          id: user.id,
-          email: user.email ?? email.trim(),
-          role: "committee",
-          committee_role: "editor",
-          first_name: firstName,
-          last_name: lastName,
-          full_name: fullName.trim(),
-          country_code: countryCode,
-          country_name: countryName,
-          hospital: hospital.trim(),
+          p_first_name: firstName,
+          p_last_name: lastName,
+          p_full_name: fullName.trim(),
+          p_country_code: countryCode,
+          p_country_name: countryName,
+          p_hospital: hospital.trim(),
         },
-        { onConflict: "id" },
       );
-      if (profileError) throw profileError;
+      if (rpcError) throw rpcError;
 
       setInfo("Welcome aboard. Redirecting to the committee dashboard…");
       setTimeout(() => {
         router.replace("/committee");
       }, 900);
     } catch (error) {
+      // Capture to Sentry so we get visibility into invitation failures.
+      // Without this, only uncaught exceptions are tracked, not handled ones.
+      Sentry.captureException(error, {
+        tags: { flow: "committee_invitation_complete" },
+        extra: {
+          // Include identifiers but not PII. user.id is already attached by SentryAuthListener.
+          has_session: !!invitedUserRef.current,
+        },
+      });
+
       setMsg(
         error instanceof Error
           ? error.message
