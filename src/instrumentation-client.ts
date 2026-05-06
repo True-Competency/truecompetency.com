@@ -22,6 +22,10 @@ Sentry.init({
   // Master switch. When false, the SDK loads but no events are sent.
   enabled,
 
+  // Route browser-side events through our own /monitoring route to bypass ad blockers.
+  // This replaces withSentryConfig's tunnelRoute option, which doesn't work with Turbopack production builds.
+  tunnel: "/monitoring",
+
   // Privacy: do not attach IPs, request headers, or cookies to events.
   // This is the opposite of Sentry's default and is intentional for our privacy stance.
   sendDefaultPii: false,

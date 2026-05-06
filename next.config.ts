@@ -61,12 +61,6 @@ export default withSentryConfig(nextConfig, {
   // Disable Sentry's logger statements in production bundles to reduce bundle size.
   disableLogger: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  tunnelRoute: "/monitoring",
-
   webpack: {
     // No Vercel crons in this project — keep this off until we add them.
     automaticVercelMonitors: false,
