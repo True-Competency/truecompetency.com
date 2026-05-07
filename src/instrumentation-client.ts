@@ -22,10 +22,16 @@ Sentry.init({
   // Master switch. When false, the SDK loads but no events are sent.
   enabled,
 
-  ignoreErrors: [
+   ignoreErrors: [
     "Non-Error promise rejection captured",
     "Object Not Found Matching Id",
     "Object captured as exception with keys",
+    // Browser aborts in-flight requests when the user navigates away.
+    // The fetch promise rejects with "Failed to fetch" — this is expected, not a bug.
+    "TypeError: Failed to fetch",
+    // Same root cause, different message in some browsers.
+    "TypeError: NetworkError when attempting to fetch resource",
+    "TypeError: Load failed",
   ],
   
   // Route browser-side events through our own /monitoring route to bypass ad blockers.
