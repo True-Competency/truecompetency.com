@@ -1,10 +1,26 @@
+// Sends a committee invitation email containing a plain link to /welcome.
+// We do NOT use Supabase's inviteUserByEmail because that delivers a one-time
+// magic-link token that enterprise email scanners (Microsoft Defender Safe Links
+// at hospitals/universities) auto-visit and consume before the recipient ever
+// clicks. The new /welcome page is a self-service signup form that does not
+// require any token.
+
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { Resend } from "resend";
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { checkRateLimit, invitationLimiter } from "@/lib/rateLimit";
 
 function isValidEmail(email: string) {
   return /^\S+@\S+\.\S+$/.test(email);
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export async function POST(req: NextRequest) {
@@ -20,8 +36,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, committee_role, hospital")
-    .select("role, committee_role, hospital, first_name, last_name")
+    .select("role, committee_role, hospital, first_name, last_name, email")
     .eq("id", user.id)
     .maybeSingle<{
       role: string | null;
@@ -29,6 +44,7 @@ export async function POST(req: NextRequest) {
       hospital: string | null;
       first_name: string | null;
       last_name: string | null;
+      email: string | null;
     }>();
 
   if (profileError) {
@@ -91,57 +107,72 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  try {
-    const admin = getSupabaseAdmin();
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin;
-    const redirectTo = `${origin}/welcome?email=${encodeURIComponent(email)}`;
-
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        redirectTo,
-        data: {
-          role: "committee",
-          committee_role: "editor",
-          hospital: profile.hospital ?? null,
-          invited_by:
-            `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
-        },
-      },
+  if (!process.env.RESEND_API_KEY) {
+    console.error("[committee/invitations] RESEND_API_KEY not configured");
+    return NextResponse.json(
+      { error: "Invitation email service is not configured." },
+      { status: 500 },
     );
+  }
 
-    if (inviteError) {
-      const message = inviteError.message.toLowerCase();
-      if (message.includes("already") || message.includes("registered")) {
-        return NextResponse.json(
-          {
-            error:
-              "That email is already registered. Ask the user to sign in, or update their committee access manually.",
-          },
-          { status: 409 },
-        );
-      }
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin;
+  const welcomeUrl = `${origin}/welcome?email=${encodeURIComponent(email)}`;
+  const chairName =
+    `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+    profile.email ||
+    "The committee chair";
 
-      console.error(
-        "[committee/invitations] inviteUserByEmail error:",
-        inviteError,
-      );
-      return NextResponse.json(
-        { error: inviteError.message || "Failed to send invitation email." },
-        { status: 500 },
-      );
-    }
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      to: email,
+      from: "True Competency <noreply@truecompetency.com>",
+      subject: "You've been invited to join True Competency",
+      text: [
+        "Hi,",
+        "",
+        `${chairName} has invited you to join the True Competency committee.`,
+        "",
+        "True Competency is the assessment platform for the TCIP APSC IVUS competency program.",
+        "",
+        "Click the link below to set up your account:",
+        welcomeUrl,
+        "",
+        "If you have any questions, reply to this email.",
+        "",
+        "— True Competency Team",
+      ].join("\n"),
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a; line-height: 1.6;">
+          <p>Hi,</p>
+          <p><strong>${escapeHtml(chairName)}</strong> has invited you to join the True Competency committee.</p>
+          <p>True Competency is the assessment platform for the TCIP APSC IVUS competency program.</p>
+          <p>Click the button below to set up your account:</p>
+          <p style="margin: 28px 0;">
+            <a href="${welcomeUrl}"
+               style="display: inline-block; background: #5170FF; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">
+              Set up your account
+            </a>
+          </p>
+          <p style="font-size: 13px; color: #666;">
+            Or paste this link into your browser:<br>
+            <a href="${welcomeUrl}" style="color: #5170FF; word-break: break-all;">${welcomeUrl}</a>
+          </p>
+          <p>If you have any questions, reply to this email.</p>
+          <p style="margin-top: 32px; color: #666;">— True Competency Team</p>
+        </div>
+      `,
+    });
 
     return NextResponse.json({
       ok: true,
-      message: `Invitation sent to ${email}. They will join as a committee editor after accepting the invite.`,
+      message: `Invitation sent to ${email}. They will join as a committee editor after signing up.`,
     });
   } catch (error) {
-    console.error("[committee/invitations] unexpected error:", error);
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to initialize invitation service.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[committee/invitations] Resend send failed:", error);
+    return NextResponse.json(
+      { error: "Failed to send invitation email. Please try again." },
+      { status: 500 },
+    );
   }
 }

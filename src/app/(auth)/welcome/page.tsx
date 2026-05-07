@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import countryList from "react-select-country-list";
 import CountrySelect from "@/components/CountrySelect";
-import { ensureProfile } from "@/lib/ensureProfile";
 import { supabase } from "@/lib/supabaseClient";
 import * as Sentry from "@sentry/nextjs";
 
@@ -30,7 +30,9 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <input
         type={type}
         value={value}
@@ -39,7 +41,7 @@ function Field({
         autoComplete={autoComplete}
         required={required}
         disabled={disabled}
-        className="w-full px-4 py-3 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all disabled:bg-gray-50 disabled:text-gray-500"
+        className="w-full px-4 py-3 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all disabled:opacity-60"
         style={{ borderRadius: "16px" }}
       />
     </div>
@@ -60,10 +62,11 @@ function PasswordField({
   autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
-
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--foreground)]">
+        {label}
+      </label>
       <div className="relative">
         <input
           type={show ? "text" : "password"}
@@ -72,14 +75,14 @@ function PasswordField({
           placeholder={placeholder}
           autoComplete={autoComplete}
           required
-          className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
+          className="w-full px-4 py-3 pr-12 bg-[var(--field)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[#5170ff]/50 focus:border-[#5170ff] transition-all"
           style={{ borderRadius: "16px" }}
         />
         <button
           type="button"
           aria-label={show ? "Hide password" : "Show password"}
           onClick={() => setShow((s) => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
         >
           {show ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -122,7 +125,6 @@ function WelcomeRightPanel() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-float" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-float-delayed" />
       </div>
-
       <div className="absolute inset-0 opacity-10">
         <div
           className="absolute inset-0"
@@ -140,18 +142,17 @@ function WelcomeRightPanel() {
             Committee Invitation
           </div>
           <h2 className="text-4xl font-bold text-white leading-tight">
-            Finish your committee profile
+            Join the True Competency committee
           </h2>
           <p className="text-lg text-white/90 leading-relaxed">
-            Your invitation is ready. Set your password and complete a few
-            profile details to enter the committee dashboard.
+            Set up your account to start proposing competencies, reviewing
+            questions, and shaping the program.
           </p>
         </div>
-
         <div className="space-y-4">
           {[
-            "Create a secure password for your invited account",
-            "Add your full name and location for committee records",
+            "Create a secure password for your committee account",
+            "Add your name and location for committee records",
             "Enter your hospital so members can recognize your profile",
           ].map((item) => (
             <div key={item} className="flex items-start gap-3 text-white/95">
@@ -186,200 +187,108 @@ function WelcomeRightPanel() {
   );
 }
 
-function splitName(fullName: string) {
-  const clean = fullName.trim().replace(/\s+/g, " ");
-  if (!clean) return { firstName: null, lastName: null };
-  const parts = clean.split(" ");
-  return {
-    firstName: parts[0] ?? null,
-    lastName: parts.slice(1).join(" ") || null,
-  };
-}
-
 export default function WelcomePage() {
   const router = useRouter();
   const countryOptions = useMemo(() => countryList().getData(), []);
 
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [hospital, setHospital] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+
   const [msg, setMsg] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const invitedUserRef = useRef<import("@supabase/supabase-js").User | null>(
-    null,
-  );
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const invitedEmail = sp.get("email");
-    if (invitedEmail) setEmail(invitedEmail);
-
-    let subscription: { unsubscribe: () => void } | null = null;
-
-    async function init() {
-      // ── Step 1: Extract invite tokens from URL hash BEFORE doing anything else ──
-      const hash = window.location.hash;
-      const hashParams = new URLSearchParams(hash.substring(1));
-      const accessToken = hashParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token");
-      const type = hashParams.get("type"); // will be "invite"
-
-      // ── Step 2: Only sign out if there is NO invite token in the URL ──
-      // If we sign out while an invite token is present, we kill the session
-      if (!accessToken) {
-        await supabase.auth.signOut();
-      }
-
-      // ── Step 3: Set session from invite token ──
-      if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (sessionError) {
-          // Token is expired or invalid — show clear message, stop spinner
-          setMsg(
-            "This invitation link has expired. Please contact the committee chair to send a new invitation to your email.",
-          );
-          setLoading(false);
-          return;
-        }
-      } else if (!accessToken) {
-        // No token in URL and no existing session — direct navigation to /welcome
-        setMsg(
-          "This page is only accessible via an invitation link. Please check your email.",
-        );
-        setLoading(false);
-        return;
-      }
-
-      // ── Step 4: Listen for auth state ──
-      const { data } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          // Both SIGNED_IN and INITIAL_SESSION (when a session exists) can be the first event we receive
-          // depending on the timing of setSession resolution. Handle both identically.
-          if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
-            invitedUserRef.current = session.user;
-            const user = session.user;
-            const metadata = (user.user_metadata ?? {}) as Record<
-              string,
-              unknown
-            >;
-            const profileRole =
-              typeof metadata.role === "string" ? metadata.role : null;
-
-            // Non-committee user landed here — send them away
-            if (profileRole && profileRole !== "committee") {
-              router.replace("/signin");
-              return;
-            }
-
-            setEmail(user.email ?? invitedEmail ?? "");
-            setInfo("Complete your invited committee account to continue.");
-            setLoading(false);
-          } else if (event === "INITIAL_SESSION" && !session) {
-            // Should not happen if setSession succeeded, but just in case
-            setMsg(
-              "Failed to establish your invitation session. Please try clicking the link again.",
-            );
-            setLoading(false);
-          }
-        },
-      );
-
-      subscription = data.subscription;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const emailParam = sp.get("email");
+      if (emailParam) setEmail(emailParam);
+    } catch {
+      // no-op
     }
+  }, []);
 
-    void init();
-    return () => subscription?.unsubscribe();
-  }, [router]);
-
-  function validate() {
-    if (!email.trim()) return "Missing invited email address.";
-    if (!fullName.trim()) return "Please enter your full name.";
+  function validate(): string | null {
+    if (!/^\S+@\S+\.\S+$/.test(email)) return "Please enter a valid email.";
+    if (!firstName.trim() || !lastName.trim())
+      return "Please enter your first and last name.";
     if (!countryCode) return "Please select your country.";
     if (!hospital.trim()) return "Please enter your hospital.";
     if (password.length < 8) return "Password must be at least 8 characters.";
     if (password !== confirm) return "Passwords do not match.";
+    if (!agreeToTerms) return "You must agree to the terms and conditions.";
     return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-    setInfo(null);
 
-    const validationError = validate();
-    if (validationError) {
-      setMsg(validationError);
+    const v = validate();
+    if (v) {
+      setMsg(v);
       return;
     }
 
     setSaving(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      const user = invitedUserRef.current;
-      if (!user) {
-        throw new Error(
-          "Your invitation session has expired. Please reopen the invite link from your email.",
-        );
+      const countryName =
+        countryOptions.find((o) => o.value === countryCode)?.label ?? null;
+
+      const res = await fetch("/api/welcome-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          country_code: countryCode.toUpperCase(),
+          country_name: countryName,
+          hospital: hospital.trim(),
+        }),
+      });
+
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+      } | null;
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Account creation failed.");
       }
 
-      const { firstName, lastName } = splitName(fullName);
-      const countryName =
-        countryOptions.find((option) => option.value === countryCode)?.label ??
-        null;
-
-      // Step 1: set the password.
-      // updateUser still needs to happen client-side because the auth admin API requires the service role key,
-      // which we never expose to the browser. The trigger on UPDATE syncs email/full_name to profiles automatically.
-      const { error: authError } = await supabase.auth.updateUser({
+      // Account exists server-side now. Try to sign in directly; on failure
+      // redirect to /signin with the email pre-filled rather than throwing,
+      // so the user has a clean recovery path (the form would otherwise 409).
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
         password,
-        data: {
-          full_name: fullName.trim(),
-        },
       });
-      if (authError) throw authError;
+      if (signInError) {
+        Sentry.captureException(signInError, {
+          tags: { flow: "committee_welcome_signup" },
+          extra: { stage: "post_create_signin" },
+        });
+        router.replace(
+          `/signin?accountCreated=1&email=${encodeURIComponent(normalizedEmail)}`,
+        );
+        return;
+      }
 
-      // Step 2: complete the profile via SECURITY DEFINER RPC.
-      // This is the single atomic operation that finalizes the invitation.
-      // RLS does not apply inside the RPC; the function itself verifies auth.uid().
-      const { error: rpcError } = await supabase.rpc(
-        "complete_committee_invitation",
-        {
-          p_first_name: firstName,
-          p_last_name: lastName,
-          p_full_name: fullName.trim(),
-          p_country_code: countryCode,
-          p_country_name: countryName,
-          p_hospital: hospital.trim(),
-        },
-      );
-      if (rpcError) throw rpcError;
-
-      setInfo("Welcome aboard. Redirecting to the committee dashboard…");
-      setTimeout(() => {
-        router.replace("/committee");
-      }, 900);
+      router.replace("/committee");
     } catch (error) {
-      // Capture to Sentry so we get visibility into invitation failures.
-      // Without this, only uncaught exceptions are tracked, not handled ones.
       Sentry.captureException(error, {
-        tags: { flow: "committee_invitation_complete" },
-        extra: {
-          // Include identifiers but not PII. user.id is already attached by SentryAuthListener.
-          has_session: !!invitedUserRef.current,
-        },
+        tags: { flow: "committee_welcome_signup" },
       });
-
       setMsg(
-        error instanceof Error
-          ? error.message
-          : "Failed to complete your account setup.",
+        error instanceof Error ? error.message : "Failed to create your account.",
       );
     } finally {
       setSaving(false);
@@ -387,7 +296,7 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
       <style jsx global>{`
         @keyframes float {
           0%,
@@ -427,10 +336,10 @@ export default function WelcomePage() {
               className="drop-shadow-2xl"
             />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+              <h1 className="text-3xl font-bold text-[var(--foreground)] mb-1">
                 True Competency
               </h1>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[var(--muted)]">
                 TCIP APSC IVUS Competency Platform
               </p>
             </div>
@@ -438,126 +347,142 @@ export default function WelcomePage() {
         </div>
 
         <div
-          className="bg-white shadow-2xl overflow-hidden"
+          className="bg-[var(--surface)] shadow-2xl overflow-hidden"
           style={{ borderRadius: "40px" }}
         >
           <div className="grid lg:grid-cols-2 gap-0">
             <div className="p-8 lg:p-12">
               <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-900">
-                  Complete your invitation
+                <h2 className="text-3xl font-bold text-[var(--foreground)]">
+                  Join the committee
                 </h2>
-                <p className="text-gray-600 mt-2">
-                  Finish setting up your committee account before entering the
-                  platform.
+                <p className="text-[var(--muted)] mt-2">
+                  Set up your account to enter the committee dashboard.
                 </p>
               </div>
 
-              {info && (
-                <div
-                  className="mb-5 border border-blue-200 bg-blue-50 px-4 py-3"
-                  style={{ borderRadius: "14px" }}
-                >
-                  <p className="text-sm text-blue-700">{info}</p>
-                </div>
-              )}
-
-              {msg && (
-                <div
-                  className="mb-5 border border-red-200 bg-red-50 px-4 py-3"
-                  style={{ borderRadius: "14px" }}
-                >
-                  <p className="text-sm text-red-600">{msg}</p>
-                </div>
-              )}
-
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="w-8 h-8 border-2 border-[#5170ff] border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-500">
-                    Setting up your account… This may take a moment.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
                   <Field
-                    label="Invited email"
-                    type="email"
-                    value={email}
-                    onChange={setEmail}
-                    placeholder="name@hospital.org"
-                    autoComplete="email"
-                    disabled
-                  />
-
-                  <Field
-                    label="Full name"
+                    label="First name"
                     type="text"
-                    value={fullName}
-                    onChange={setFullName}
-                    placeholder="Dr. Jane Doe"
-                    autoComplete="name"
+                    value={firstName}
+                    onChange={setFirstName}
+                    placeholder="Jane"
+                    autoComplete="given-name"
                   />
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Country
-                    </label>
-                    <div
-                      className="border border-gray-200 bg-white p-2"
-                      style={{ borderRadius: "16px" }}
-                    >
-                      <CountrySelect
-                        value={countryCode || null}
-                        onChange={(code) => setCountryCode(code.toUpperCase())}
-                        placeholder="Select your country..."
-                      />
-                    </div>
-                  </div>
-
                   <Field
-                    label="Hospital"
+                    label="Last name"
                     type="text"
-                    value={hospital}
-                    onChange={setHospital}
-                    placeholder="e.g., Montreal General Hospital"
-                    autoComplete="organization"
+                    value={lastName}
+                    onChange={setLastName}
+                    placeholder="Doe"
+                    autoComplete="family-name"
                   />
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <PasswordField
-                      label="Create password"
-                      value={password}
-                      onChange={setPassword}
-                      placeholder="Create a password"
-                      autoComplete="new-password"
-                    />
-                    <PasswordField
-                      label="Confirm password"
-                      value={confirm}
-                      onChange={setConfirm}
-                      placeholder="Re-enter password"
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full py-3.5 text-white font-semibold transition-all duration-300 hover:shadow-xl hover:shadow-[#5170ff]/25 disabled:opacity-70 disabled:cursor-not-allowed"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #5170ff 0%, #6b85ff 100%)",
-                      borderRadius: "16px",
-                    }}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[var(--muted)]">
+                    Country
+                  </label>
+                  <div
+                    className="border border-[var(--border)] bg-[var(--field)] p-2"
+                    style={{ borderRadius: "16px" }}
                   >
-                    {saving ? "Finishing setup…" : "Enter committee dashboard"}
-                  </button>
-                </form>
-              )}
+                    <CountrySelect
+                      value={countryCode || null}
+                      onChange={(c) => setCountryCode((c || "").toUpperCase())}
+                      placeholder="Select your country..."
+                    />
+                  </div>
+                </div>
+
+                <Field
+                  label="Hospital"
+                  type="text"
+                  value={hospital}
+                  onChange={setHospital}
+                  placeholder="e.g., Montreal General Hospital"
+                  autoComplete="organization"
+                />
+
+                <Field
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="user@example.com"
+                  autoComplete="email"
+                />
+
+                <PasswordField
+                  label="Password"
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="Create a password"
+                  autoComplete="new-password"
+                />
+
+                <PasswordField
+                  label="Confirm password"
+                  value={confirm}
+                  onChange={setConfirm}
+                  placeholder="Re-enter password"
+                  autoComplete="new-password"
+                />
+
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    checked={agreeToTerms}
+                    onChange={(e) => setAgreeToTerms(e.target.checked)}
+                    className="mt-1 w-4 h-4 rounded border-[var(--border)] text-[#5170ff] focus:ring-[#5170ff]"
+                  />
+                  <label htmlFor="terms" className="text-sm text-[var(--muted)]">
+                    I agree to the{" "}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#5170ff] hover:text-[#4060ef] font-medium underline"
+                    >
+                      terms and conditions
+                    </a>
+                  </label>
+                </div>
+
+                {msg && (
+                  <div
+                    className="p-3 border border-[color:var(--err)]/30 bg-[color:var(--err)]/10"
+                    style={{ borderRadius: "12px" }}
+                  >
+                    <p className="text-sm text-[var(--err)]">{msg}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full py-3 px-4 bg-[#5170ff] hover:bg-[#4060ef] text-white font-semibold shadow-lg shadow-[#5170ff]/30 hover:shadow-xl hover:shadow-[#5170ff]/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ borderRadius: "16px" }}
+                >
+                  {saving ? "Creating account…" : "Create account"}
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-[var(--muted)]">
+                Already have an account?{" "}
+                <Link
+                  href="/signin"
+                  className="font-semibold text-[#5170ff] hover:text-[#4060ef] transition-colors"
+                >
+                  Sign in here
+                </Link>
+              </p>
             </div>
 
-            <div className="hidden lg:block p-4">
+            <div className="hidden lg:block bg-[var(--field)] p-8">
               <WelcomeRightPanel />
             </div>
           </div>
