@@ -49,7 +49,16 @@ export default function RootPage({ stats }: { stats: LandingStats }) {
           .from("profiles")
           .select("id, role")
           .eq("id", uid)
-          .single<Profile>();
+          .maybeSingle<Profile>();
+        if (!prof) {
+          // No profile row visible to this session — almost always means the auth
+          // session expired or token refresh failed mid-load, causing RLS to
+          // evaluate auth.uid() = null. Sign out cleanly and route to signin so
+          // the user gets a fresh session.
+          await supabase.auth.signOut();
+          if (!cancelled) router.replace("/signin?redirect=/about");
+          return;
+        }
         if (prof && !cancelled) {
           const url = ROLE_HOME[prof.role];
           setDashUrl(url);
