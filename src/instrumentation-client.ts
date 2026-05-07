@@ -22,6 +22,12 @@ Sentry.init({
   // Master switch. When false, the SDK loads but no events are sent.
   enabled,
 
+  ignoreErrors: [
+    "Non-Error promise rejection captured",
+    "Object Not Found Matching Id",
+    "Object captured as exception with keys",
+  ],
+  
   // Route browser-side events through our own /monitoring route to bypass ad blockers.
   // This replaces withSentryConfig's tunnelRoute option, which doesn't work with Turbopack production builds.
   tunnel: "/monitoring",
