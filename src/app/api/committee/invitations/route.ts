@@ -127,39 +127,68 @@ export async function POST(req: NextRequest) {
     await resend.emails.send({
       to: email,
       from: "True Competency <noreply@truecompetency.com>",
-      subject: "You've been invited to join True Competency",
+      replyTo: process.env.SUPPORT_EMAIL ?? "support@truecompetency.com",
+      subject: `${chairName} invited you to join True Competency`,
       text: [
-        "Hi,",
-        "",
-        `${chairName} has invited you to join the True Competency committee.`,
-        "",
-        "True Competency is the assessment platform for the TCIP APSC IVUS competency program.",
-        "",
-        "Click the link below to set up your account:",
+        `Hello!`,
+        ``,
+        `${chairName} invites you to join the True Competency as a committee member.`,
+        ``,
+        `When you're ready, set up your account here:`,
         welcomeUrl,
-        "",
-        "If you have any questions, reply to this email.",
-        "",
-        "— True Competency Team",
+        ``,
+        `Have any questions? Just reply to this email and we'll get back to you.`,
+        ``,
+        `Looking forward to having you on board,`,
+        `The True Competency Team`,
       ].join("\n"),
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a; line-height: 1.6;">
-          <p>Hi,</p>
-          <p><strong>${escapeHtml(chairName)}</strong> has invited you to join the True Competency committee.</p>
-          <p>True Competency is the assessment platform for the TCIP APSC IVUS competency program.</p>
-          <p>Click the button below to set up your account:</p>
-          <p style="margin: 28px 0;">
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a; line-height: 1.6; padding: 24px 20px;">
+
+          <!-- Logo header. Centered above the body, links back to homepage in case the recipient clicks it. -->
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="https://truecompetency.com" style="display: inline-block; text-decoration: none;">
+              <img src="https://truecompetency.com/TC_Logo.png"
+                   alt="True Competency"
+                   width="64"
+                   height="64"
+                   style="display: block; margin: 0 auto; border: 0;" />
+            </a>
+          </div>
+
+          <p style="font-size: 16px; margin: 0 0 16px;">Hello!</p>
+
+          <p style="font-size: 16px; margin: 0 0 16px;">
+            <strong>${escapeHtml(chairName)}</strong> invites you to join the True Competency as a committee member.
+          </p>
+
+          <p style="font-size: 16px; margin: 0 0 8px;">When you're ready, set up your account:</p>
+
+          <!--
+            Button uses border-radius: 16px to match the rounded style used on welcome/signup form buttons.
+            Inline styles only because email clients strip <style> tags inconsistently.
+          -->
+          <p style="margin: 28px 0; text-align: center;">
             <a href="${welcomeUrl}"
-               style="display: inline-block; background: #5170FF; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">
+               style="display: inline-block; background: #5170FF; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 9999px; font-weight: 600; font-size: 15px;">
               Set up your account
             </a>
           </p>
-          <p style="font-size: 13px; color: #666;">
+
+          <p style="font-size: 13px; color: #666; margin: 24px 0 16px;">
             Or paste this link into your browser:<br>
             <a href="${welcomeUrl}" style="color: #5170FF; word-break: break-all;">${welcomeUrl}</a>
           </p>
-          <p>If you have any questions, reply to this email.</p>
-          <p style="margin-top: 32px; color: #666;">— True Competency Team</p>
+
+          <p style="font-size: 16px; margin: 24px 0 8px;">
+            Have any questions? Just reply to this email and we'll get back to you.
+          </p>
+
+          <p style="font-size: 16px; margin: 24px 0 0; color: #1a1a1a;">
+            Looking forward to having you on board,<br>
+            <span style="color: #666;">The True Competency Team</span>
+          </p>
+
         </div>
       `,
     });
