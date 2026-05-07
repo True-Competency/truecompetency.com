@@ -162,7 +162,7 @@ export default function DebugClient() {
               .from("profiles")
               .select("id, email, role")
               .eq("id", user.id)
-              .single<Profile>(),
+              .maybeSingle<Profile>(),
           add
         );
 
@@ -180,6 +180,17 @@ export default function DebugClient() {
               meOut.data.role
             } (${ms(meDt)})`,
             extra: meOut.data,
+          });
+        } else {
+          // maybeSingle returned no row and no error — almost always means the
+          // auth session expired or token refresh failed mid-load, causing RLS
+          // to evaluate auth.uid() = null. Reported here as a "warn" rather
+          // than recovered (signOut/redirect) because this page exists to
+          // diagnose exactly this kind of issue.
+          add({
+            name: "profiles (current user)",
+            status: "warn",
+            detail: `no row visible to this session — likely RLS denied (auth.uid() = null). check session above. (${ms(meDt)})`,
           });
         }
 

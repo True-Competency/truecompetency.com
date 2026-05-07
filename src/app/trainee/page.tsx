@@ -166,8 +166,17 @@ export default function TraineeDashboard() {
           .from("profiles")
           .select("id, role, first_name, last_name, full_name, email")
           .eq("id", uid)
-          .single<Profile>();
+          .maybeSingle<Profile>();
         if (profErr) throw profErr;
+        if (!prof) {
+          // No profile row visible to this session — almost always means the auth
+          // session expired or token refresh failed mid-load, causing RLS to
+          // evaluate auth.uid() = null. Sign out cleanly and route to signin so
+          // the user gets a fresh session.
+          await supabase.auth.signOut();
+          router.replace("/signin?redirect=/trainee");
+          return;
+        }
         if (cancelled) return;
         setMe(prof);
 

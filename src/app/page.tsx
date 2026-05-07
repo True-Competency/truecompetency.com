@@ -52,8 +52,20 @@ export default function RootPage() {
           .from("profiles")
           .select("id, role")
           .eq("id", uid)
-          .single<Profile>();
+          .maybeSingle<Profile>();
         if (perr) throw perr;
+        if (!prof) {
+          // No profile row visible to this session — almost always means the auth
+          // session expired or token refresh failed mid-load, causing RLS to
+          // evaluate auth.uid() = null. Sign out cleanly and route to signin so
+          // the user gets a fresh session.
+          await supabase.auth.signOut();
+          if (!cancelled) {
+            router.replace("/signin");
+            setChecking(false);
+          }
+          return;
+        }
 
         const home = ROLE_HOME[prof.role];
 
