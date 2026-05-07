@@ -232,12 +232,15 @@ export default function SignInPage() {
       const r = sp.get("redirect");
       const checkEmail = sp.get("checkEmail");
       const verified = sp.get("verified");
+      const accountCreated = sp.get("accountCreated");
       const signupEmail = sp.get("email");
       if (r && typeof r === "string") setRedirect(r);
       if (signupEmail && typeof signupEmail === "string") {
         setEmail(signupEmail);
       }
-      if (checkEmail === "1") {
+      if (accountCreated === "1") {
+        setInfo("Your account has been created. Please sign in.");
+      } else if (checkEmail === "1") {
         setInfo(
           "Please check your inbox and confirm your email before signing in.",
         );
