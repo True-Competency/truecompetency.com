@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      message: `Invitation sent to ${email}. They will join as a committee editor after signing up.`,
+      message: `Invitation sent to ${email}. They will join as a committee member after signing up.`,
     });
   } catch (error) {
     console.error("[committee/invitations] Resend send failed:", error);

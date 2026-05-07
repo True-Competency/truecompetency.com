@@ -179,7 +179,7 @@ function WelcomeRightPanel() {
             Invited role: Committee Member
           </p>
           <p className="mt-1 text-sm text-white/80">
-            New invitees are added as committee editors.
+            New invitees are added as committee members.
           </p>
         </div>
       </div>
