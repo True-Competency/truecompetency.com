@@ -77,7 +77,7 @@ For questions or partnership inquiries, contact [contact@truecompetency.com](mai
 
 ## Team
 
-Built by **Murad Novruzov** (Chief Technical Officer) in collaboration with  
+Built by **Murad Novruzov** in collaboration with  
 **Marc James de Man** (Co-founder) and **Dr. Kwan Lee** (Co-founder, Chief Medical Officer).
 
 ---
