@@ -424,8 +424,17 @@ export default function CommitteeMembers() {
       {/* ── Pending invitations (chair only) ── */}
       {isChairViewer && !pendingLoading && pendingInvites.length > 0 && (
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-4 flex items-center gap-2">
             Pending Invitations
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal"
+              style={{
+                background: "color-mix(in oklab, var(--warn) 15%, transparent)",
+                color: "var(--warn)",
+              }}
+            >
+              Stale — tracking redesign in progress
+            </span>
           </h2>
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
             <table className="min-w-full text-sm">
@@ -497,8 +506,9 @@ export default function CommitteeMembers() {
             </table>
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
-            Re-inviting will invalidate the previous link and send a fresh
-            invitation email.
+            New invitations are not currently tracked here — only legacy
+            unconfirmed users from the previous invite flow appear in this list.
+            Re-inviting sends a fresh email with a self-service signup link.
           </p>
         </div>
       )}

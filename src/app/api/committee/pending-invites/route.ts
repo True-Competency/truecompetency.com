@@ -1,6 +1,13 @@
 // src/app/api/committee/pending-invites/route.ts
 // Returns a list of users who were invited but never confirmed their invitation.
 // Chair-only endpoint — uses admin client to query auth.users.
+//
+// TODO(follow-up): With the new self-service /welcome flow, invitations no
+// longer create auth.users rows. Going forward this endpoint will only surface
+// legacy stuck users from the old inviteUserByEmail flow and will be empty for
+// new invites. Proper invitation tracking requires a dedicated
+// `committee_invitations` table; tracked as a separate ticket. Until then the
+// Members UI labels this section as "Stale".
 
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
