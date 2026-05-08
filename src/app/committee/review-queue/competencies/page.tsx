@@ -13,11 +13,21 @@ type SuggestedCompetency = {
   tags: string[] | null;
   justification: string | null;
   suggested_by: string | null;
+  subgoal_id: string | null;
 };
 
 type SuggestedCompetencyRaw = Omit<SuggestedCompetency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
 };
+
+type SubgoalRow = {
+  id: string;
+  code: string;
+  name: string;
+  domain_id: string;
+};
+
+type DomainRow = { id: string; code: string; name: string };
 
 type TagRow = {
   id: string;
@@ -51,6 +61,10 @@ export default function ReviewQueueCompetencies() {
   const [suggestedByNames, setSuggestedByNames] = useState<
     Record<string, string>
   >({});
+  const [subgoalLabels, setSubgoalLabels] = useState<
+    Record<string, { code: string; name: string; domainCode: string }>
+  >({});
+  const [committeeSize, setCommitteeSize] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -70,16 +84,50 @@ export default function ReviewQueueCompetencies() {
         if (uid && !cancelled) setMe({ id: uid });
 
         // Suggested competencies
-        const [{ data: sug, error: sErr }, { data: tagsData, error: tagsErr }] =
-          await Promise.all([
-            supabase
-              .from("competencies_stage")
-              .select("id, name, difficulty, tags, justification, suggested_by")
-              .order("name", { ascending: true }),
-            supabase.from("tags").select("id, name").order("name", { ascending: true }),
-          ]);
+        const [
+          { data: sug, error: sErr },
+          { data: tagsData, error: tagsErr },
+          { data: subgoalsData, error: sgErr },
+          { data: domainsData, error: dErr },
+          { count: committeeCount, error: cmErr },
+        ] = await Promise.all([
+          supabase
+            .from("competencies_stage")
+            .select(
+              "id, name, difficulty, tags, justification, suggested_by, subgoal_id",
+            )
+            .order("name", { ascending: true }),
+          supabase
+            .from("tags")
+            .select("id, name")
+            .order("name", { ascending: true }),
+          supabase.from("subgoals").select("id, code, name, domain_id"),
+          supabase.from("domains").select("id, code, name"),
+          supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("role", "committee"),
+        ]);
         if (sErr) throw sErr;
         if (tagsErr) throw tagsErr;
+        if (sgErr) throw sgErr;
+        if (dErr) throw dErr;
+        if (cmErr) throw cmErr;
+
+        const domainCodeById = new Map(
+          ((domainsData ?? []) as DomainRow[]).map((d) => [d.id, d.code]),
+        );
+        const subgoalLabelMap: Record<
+          string,
+          { code: string; name: string; domainCode: string }
+        > = {};
+        ((subgoalsData ?? []) as SubgoalRow[]).forEach((s) => {
+          subgoalLabelMap[s.id] = {
+            code: s.code,
+            name: s.name,
+            domainCode: domainCodeById.get(s.domain_id) ?? "",
+          };
+        });
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
         );
@@ -144,6 +192,8 @@ export default function ReviewQueueCompetencies() {
           setSuggestedByNames(namesMap);
           setMyVotes(myMap);
           setVoteCounts(countsMap);
+          setSubgoalLabels(subgoalLabelMap);
+          setCommitteeSize(committeeCount ?? 0);
         }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
@@ -278,7 +328,7 @@ export default function ReviewQueueCompetencies() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Proposal list */}
       {loading ? (
         <div className="text-sm text-[var(--muted)]">Loading…</div>
       ) : filtered.length === 0 ? (
@@ -287,63 +337,46 @@ export default function ReviewQueueCompetencies() {
           <p className="text-sm">No proposed competencies pending review.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border)] bg-[var(--field)]/40">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-12">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)]">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-36">
-                  Difficulty
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)]">
-                  Tags
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] max-w-[260px]">
-                  Justification
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-36">
-                  Proposed by
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-28">
-                  Your vote
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-36">
-                  Tally
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c, idx) => {
-                const vote = myVotes[c.id];
-                const counts = voteCounts[c.id] ?? {
-                  forCount: 0,
-                  againstCount: 0,
-                };
-                const total = counts.forCount + counts.againstCount;
-                const pct =
-                  total > 0
-                    ? Math.round((counts.forCount / total) * 100)
-                    : 0;
+        <div className="flex flex-col gap-4">
+          {filtered.map((c) => {
+            const vote = myVotes[c.id];
+            const counts = voteCounts[c.id] ?? { forCount: 0, againstCount: 0 };
+            const total = counts.forCount + counts.againstCount;
+            const yesPct = total > 0 ? (counts.forCount / total) * 100 : 0;
+            const noPct = total > 0 ? (counts.againstCount / total) * 100 : 0;
+            const proposerName = c.suggested_by
+              ? (suggestedByNames[c.suggested_by] ?? "Committee member")
+              : "Committee member";
+            const sg = c.subgoal_id ? subgoalLabels[c.subgoal_id] : null;
 
-                return (
-                  <tr
-                    key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-[color:var(--accent)]/3 transition-colors"
-                  >
-                    <td className="px-4 py-3 align-middle text-xs text-[var(--muted)]">
-                      {idx + 1}
-                    </td>
-                    <td className="px-4 py-3 align-middle font-medium text-[var(--foreground)]">
-                      {c.name}
-                    </td>
-                    <td className="px-4 py-3 align-middle">
+            return (
+              <article
+                key={c.id}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden transition-all hover:border-[color:var(--accent)]/40"
+              >
+                <div className="flex flex-col md:flex-row">
+                  {/* Left 70% — info */}
+                  <div className="flex-1 md:basis-[70%] p-5 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-semibold text-[var(--foreground)] leading-snug">
+                          {c.name}
+                        </h3>
+                        {sg ? (
+                          <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[color:var(--accent)]/30 bg-[color:var(--accent)]/8 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                            <span>{sg.code}</span>
+                            <span className="font-normal text-[var(--muted)]">
+                              {sg.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-1.5 inline-flex items-center rounded-full border border-[color:var(--warn)]/40 bg-[color:var(--warn)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--warn)]">
+                            No subgoal
+                          </div>
+                        )}
+                      </div>
                       <span
-                        className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        className="flex-shrink-0 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
                         style={{
                           background: diffColor(c.difficulty),
                           color: "#000",
@@ -351,90 +384,116 @@ export default function ReviewQueueCompetencies() {
                       >
                         {c.difficulty}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 align-middle">
-                      {c.tags && c.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {c.tags.map((t) => (
-                            <span
-                              key={t}
-                              className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
-                            >
-                              #{t}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-[var(--muted)]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-middle text-xs text-[var(--muted)] max-w-[260px]">
-                      {c.justification ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 align-middle text-xs text-[var(--muted)] whitespace-nowrap">
-                      {c.suggested_by
-                        ? (suggestedByNames[c.suggested_by] ??
-                          "Committee member")
-                        : "Committee member"}
-                    </td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleVote(c.id, true)}
-                          title="Approve"
-                          className={cls(
-                            "h-8 w-8 rounded-full grid place-items-center transition-all",
-                            vote === true
-                              ? "bg-[var(--ok)] text-white shadow-[0_2px_6px_color-mix(in_oklab,var(--ok)_40%,transparent)]"
-                              : "bg-[color:var(--ok)]/20 text-[var(--ok)] hover:bg-[var(--ok)] hover:text-white"
-                          )}
-                        >
-                          <Check size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleVote(c.id, false)}
-                          title="Reject"
-                          className={cls(
-                            "h-8 w-8 rounded-full grid place-items-center transition-all",
-                            vote === false
-                              ? "bg-[var(--err)] text-white shadow-[0_2px_6px_color-mix(in_oklab,var(--err)_40%,transparent)]"
-                              : "bg-[color:var(--err)]/20 text-[var(--err)] hover:bg-[var(--err)] hover:text-white"
-                          )}
-                        >
-                          <X size={14} />
-                        </button>
+                    </div>
+
+                    {c.tags && c.tags.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {c.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                          >
+                            #{t}
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span style={{ color: "var(--ok)" }}>
-                            ↑ {counts.forCount}
-                          </span>
-                          <span style={{ color: "var(--err)" }}>
-                            ↓ {counts.againstCount}
-                          </span>
-                        </div>
-                        <div className="h-1 w-20 rounded-full bg-[var(--border)] overflow-hidden">
+                    )}
+
+                    {c.justification && (
+                      <p className="mt-3 text-sm text-[var(--muted)] italic leading-snug">
+                        “{c.justification}”
+                      </p>
+                    )}
+
+                    <p className="mt-3 text-xs text-[var(--muted)]">
+                      Proposed by{" "}
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {proposerName}
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Separator */}
+                  <div className="w-full h-px md:w-px md:h-auto bg-[var(--border)] flex-shrink-0" />
+
+                  {/* Right 30% — vote panel */}
+                  <div className="md:basis-[30%] flex-shrink-0 p-5 flex flex-col gap-3 bg-[var(--field)]/30">
+                    <p className="text-xs text-[var(--muted)]">
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {total}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {committeeSize}
+                      </span>{" "}
+                      committee member{committeeSize === 1 ? "" : "s"} voted
+                    </p>
+
+                    <div
+                      className="h-3 w-full overflow-hidden rounded-full bg-[var(--border)]/40"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(yesPct)}
+                      aria-label={`${counts.forCount} yes votes, ${counts.againstCount} no votes`}
+                    >
+                      {total > 0 && (
+                        <div className="flex h-full w-full">
                           <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${pct}%`,
-                              background:
-                                pct >= 50 ? "var(--ok)" : "var(--err)",
-                            }}
+                            className="h-full bg-[var(--ok)]"
+                            style={{ width: `${yesPct}%` }}
+                          />
+                          <div
+                            className="h-full bg-[var(--err)]"
+                            style={{ width: `${noPct}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-[var(--muted)]">
-                          {pct}% approval
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          onClick={() => handleVote(c.id, true)}
+                          aria-label="Approve"
+                          className={cls(
+                            "inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold transition-all",
+                            vote === true
+                              ? "border-[color:var(--ok)] bg-[color:var(--ok)]/15 text-[var(--ok)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[color:var(--ok)]",
+                          )}
+                        >
+                          <Check size={14} className="text-[color:var(--ok)]" />
+                          Approve
+                        </button>
+                        <span className="text-sm whitespace-nowrap text-[var(--ok)] font-semibold">
+                          {counts.forCount} yes
                         </span>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          onClick={() => handleVote(c.id, false)}
+                          aria-label="Reject"
+                          className={cls(
+                            "inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold transition-all",
+                            vote === false
+                              ? "border-[color:var(--err)] bg-[color:var(--err)]/15 text-[var(--err)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[color:var(--err)]",
+                          )}
+                        >
+                          <X size={14} className="text-[color:var(--err)]" />
+                          Reject
+                        </button>
+                        <span className="text-sm whitespace-nowrap text-[var(--err)] font-semibold">
+                          {counts.againstCount} no
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>
