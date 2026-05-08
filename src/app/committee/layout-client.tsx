@@ -482,20 +482,6 @@ export default function CommitteeLayoutClient({
               } bottom-[82px] rounded-xl border border-[var(--border)] bg-[color:var(--surface)] shadow-[0_12px_48px_color-mix(in_oklab,var(--accent)_16%,transparent)] overflow-hidden z-20`}
             >
               <div className="py-1">
-                <Link
-                  href="/account"
-                  role="menuitem"
-                  className="block px-3 py-2 text-sm transition-colors hover:bg-[var(--accent)] hover:text-white"
-                >
-                  Account
-                </Link>
-                <Link
-                  href="/settings"
-                  role="menuitem"
-                  className="block px-3 py-2 text-sm transition-colors hover:bg-[var(--accent)] hover:text-white"
-                >
-                  Settings
-                </Link>
                 <button
                   role="menuitem"
                   onClick={handleSignOut}
