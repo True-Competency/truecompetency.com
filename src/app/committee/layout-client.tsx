@@ -45,6 +45,10 @@ export default function CommitteeLayoutClient({
   const [profile, setProfile] = useState<Profile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingCompetencyProposals, setPendingCompetencyProposals] =
+    useState<number>(0);
+  const [pendingQuestionProposals, setPendingQuestionProposals] =
+    useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -66,6 +70,33 @@ export default function CommitteeLayoutClient({
       cancelled = true;
     };
   }, []);
+
+  // Pending review-queue counts. Uses the regular client; RLS lets committee
+  // members select their stage rows.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ count: cCount }, { count: qCount }] = await Promise.all([
+        supabase
+          .from("competencies_stage")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("competency_questions_stage")
+          .select("id", { count: "exact", head: true }),
+      ]);
+      if (cancelled) return;
+      setPendingCompetencyProposals(cCount ?? 0);
+      setPendingQuestionProposals(qCount ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const roleLabel =
+    profile?.committee_role === "chief_editor"
+      ? "Chair Portal"
+      : "Committee Portal";
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -193,7 +224,7 @@ export default function CommitteeLayoutClient({
                     True Competency
                   </div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
-                    Committee Portal
+                    {roleLabel}
                   </p>
                 </div>
               )}
@@ -253,7 +284,7 @@ export default function CommitteeLayoutClient({
             <Link
               href="/committee/review-queue/competencies"
               title="Review Queue"
-              className={`${navLinkBase} ${
+              className={`relative ${navLinkBase} ${
                 collapsed
                   ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
                   : ""
@@ -266,6 +297,15 @@ export default function CommitteeLayoutClient({
                   <ChevronRight size={12} className="opacity-60" />
                 </>
               )}
+              {collapsed &&
+                pendingCompetencyProposals + pendingQuestionProposals > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full text-[9px] font-bold text-white grid place-items-center"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    {pendingCompetencyProposals + pendingQuestionProposals}
+                  </span>
+                )}
             </Link>
 
             {/* Always-visible sub-items */}
@@ -273,7 +313,7 @@ export default function CommitteeLayoutClient({
               <div className="ml-8 mt-1 space-y-0.5">
                 <Link
                   href="/committee/review-queue/competencies"
-                  className={`${subLinkBase} ${
+                  className={`relative ${subLinkBase} ${
                     pathname.startsWith("/committee/review-queue/competencies")
                       ? subActive
                       : subIdle
@@ -281,10 +321,18 @@ export default function CommitteeLayoutClient({
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
                   Competencies
+                  {pendingCompetencyProposals > 0 && (
+                    <span
+                      className="ml-auto min-w-[1.1rem] h-[18px] px-1.5 rounded-full text-[10px] font-bold text-white grid place-items-center"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      {pendingCompetencyProposals}
+                    </span>
+                  )}
                 </Link>
                 <Link
                   href="/committee/review-queue/questions"
-                  className={`${subLinkBase} ${
+                  className={`relative ${subLinkBase} ${
                     pathname.startsWith("/committee/review-queue/questions")
                       ? subActive
                       : subIdle
@@ -292,6 +340,14 @@ export default function CommitteeLayoutClient({
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
                   Questions
+                  {pendingQuestionProposals > 0 && (
+                    <span
+                      className="ml-auto min-w-[1.1rem] h-[18px] px-1.5 rounded-full text-[10px] font-bold text-white grid place-items-center"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      {pendingQuestionProposals}
+                    </span>
+                  )}
                 </Link>
               </div>
             )}

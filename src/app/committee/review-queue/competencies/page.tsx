@@ -1,9 +1,9 @@
 // src/app/committee/review-queue/competencies/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Search, X, Check, Inbox } from "lucide-react";
+import { Search, X, Check, Inbox, ChevronDown } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type SuggestedCompetency = {
@@ -14,7 +14,10 @@ type SuggestedCompetency = {
   justification: string | null;
   suggested_by: string | null;
   subgoal_id: string | null;
+  created_at: string;
 };
+
+type SortKey = "oldest" | "newest" | "votes" | "threshold";
 
 type SuggestedCompetencyRaw = Omit<SuggestedCompetency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
@@ -62,14 +65,46 @@ export default function ReviewQueueCompetencies() {
     Record<string, string>
   >({});
   const [subgoalLabels, setSubgoalLabels] = useState<
-    Record<string, { code: string; name: string; domainCode: string }>
+    Record<string, { code: string; name: string; domainCode: string; domainId: string }>
   >({});
   const [committeeSize, setCommitteeSize] = useState<number>(0);
+  const [sortBy, setSortBy] = useState<SortKey>("oldest");
+  const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [hideUnassigned, setHideUnassigned] = useState<boolean>(false);
+  const [domainOptions, setDomainOptions] = useState<DomainRow[]>([]);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [tagPickerQuery, setTagPickerQuery] = useState("");
+  const tagPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!tagPickerOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!tagPickerRef.current?.contains(e.target as Node)) {
+        setTagPickerOpen(false);
+      }
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setTagPickerOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [tagPickerOpen]);
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagOptions, setTagOptions] = useState<string[]>([]);
+  const visibleTagOptions = useMemo(() => {
+    const q = tagPickerQuery.trim().toLowerCase();
+    return q
+      ? tagOptions.filter((t) => t.toLowerCase().includes(q))
+      : tagOptions;
+  }, [tagOptions, tagPickerQuery]);
 
   // ── Data load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -94,9 +129,9 @@ export default function ReviewQueueCompetencies() {
           supabase
             .from("competencies_stage")
             .select(
-              "id, name, difficulty, tags, justification, suggested_by, subgoal_id",
+              "id, name, difficulty, tags, justification, suggested_by, subgoal_id, created_at",
             )
-            .order("name", { ascending: true }),
+            .order("created_at", { ascending: true }),
           supabase
             .from("tags")
             .select("id, name")
@@ -119,13 +154,14 @@ export default function ReviewQueueCompetencies() {
         );
         const subgoalLabelMap: Record<
           string,
-          { code: string; name: string; domainCode: string }
+          { code: string; name: string; domainCode: string; domainId: string }
         > = {};
         ((subgoalsData ?? []) as SubgoalRow[]).forEach((s) => {
           subgoalLabelMap[s.id] = {
             code: s.code,
             name: s.name,
             domainCode: domainCodeById.get(s.domain_id) ?? "",
+            domainId: s.domain_id,
           };
         });
         const tagNameById = new Map(
@@ -194,6 +230,9 @@ export default function ReviewQueueCompetencies() {
           setVoteCounts(countsMap);
           setSubgoalLabels(subgoalLabelMap);
           setCommitteeSize(committeeCount ?? 0);
+          setDomainOptions(((domainsData ?? []) as DomainRow[]).slice().sort(
+            (a, b) => a.code.localeCompare(b.code),
+          ));
         }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
@@ -208,7 +247,7 @@ export default function ReviewQueueCompetencies() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return suggested.filter((r) => {
+    const base = suggested.filter((r) => {
       const inSearch =
         !needle ||
         r.name.toLowerCase().includes(needle) ||
@@ -219,9 +258,48 @@ export default function ReviewQueueCompetencies() {
         tagFilters.every((t) =>
           (r.tags ?? []).map((x) => x.toLowerCase()).includes(t.toLowerCase())
         );
-      return inSearch && tagsOk;
+      const rowDomainId = r.subgoal_id
+        ? (subgoalLabels[r.subgoal_id]?.domainId ?? null)
+        : null;
+      const domainOk =
+        domainFilter === "all" ? true : rowDomainId === domainFilter;
+      const unassignedOk = !hideUnassigned || r.subgoal_id !== null;
+      return inSearch && tagsOk && domainOk && unassignedOk;
     });
-  }, [suggested, query, tagFilters]);
+
+    const totalVotes = (id: string) => {
+      const c = voteCounts[id];
+      return c ? c.forCount + c.againstCount : 0;
+    };
+    const sorted = base.slice();
+    if (sortBy === "oldest") {
+      sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    } else if (sortBy === "newest") {
+      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    } else if (sortBy === "votes") {
+      sorted.sort((a, b) => totalVotes(b.id) - totalVotes(a.id));
+    } else if (sortBy === "threshold") {
+      // Closest to 50/50 split first; proposals with no votes go last.
+      const distance = (id: string) => {
+        const c = voteCounts[id];
+        const total = c ? c.forCount + c.againstCount : 0;
+        if (total === 0) return Number.POSITIVE_INFINITY;
+        const yesPct = c!.forCount / total;
+        return Math.abs(yesPct - 0.5);
+      };
+      sorted.sort((a, b) => distance(a.id) - distance(b.id));
+    }
+    return sorted;
+  }, [
+    suggested,
+    query,
+    tagFilters,
+    subgoalLabels,
+    domainFilter,
+    hideUnassigned,
+    sortBy,
+    voteCounts,
+  ]);
 
   // ── Vote handler ─────────────────────────────────────────────────────────
   async function handleVote(stageId: string, value: boolean) {
@@ -274,6 +352,142 @@ export default function ReviewQueueCompetencies() {
         </div>
       )}
 
+      {/* Sort + domain filter + tags + hide-unassigned controls */}
+      <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+            Sort
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortKey)}
+                className="appearance-none rounded-full border border-[var(--border)] bg-[var(--field)] pl-4 pr-8 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[color:var(--accent)] transition-colors cursor-pointer"
+              >
+                <option value="oldest">Oldest first</option>
+                <option value="newest">Newest first</option>
+                <option value="votes">Most votes</option>
+                <option value="threshold">Closest to threshold</option>
+              </select>
+              <ChevronDown
+                size={12}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+            </div>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+            Domain
+            <div className="relative">
+              <select
+                value={domainFilter}
+                onChange={(e) => setDomainFilter(e.target.value)}
+                className="appearance-none rounded-full border border-[var(--border)] bg-[var(--field)] pl-4 pr-8 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[color:var(--accent)] transition-colors cursor-pointer"
+              >
+                <option value="all">All domains</option>
+                {domainOptions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code}. {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={12}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+            </div>
+          </label>
+
+          {/* Tag picker — multi-select with type-to-search */}
+          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+            Tags
+            <div className="relative" ref={tagPickerRef}>
+              <button
+                type="button"
+                onClick={() => setTagPickerOpen((v) => !v)}
+                className="appearance-none rounded-full border border-[var(--border)] bg-[var(--field)] pl-4 pr-8 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[color:var(--accent)] hover:border-[color:var(--accent)] transition-colors cursor-pointer"
+              >
+                {tagFilters.length === 0
+                  ? "All tags"
+                  : `${tagFilters.length} selected`}
+              </button>
+              <ChevronDown
+                size={12}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+              {tagPickerOpen && (
+                <div className="absolute left-0 top-full mt-1.5 z-30 w-64 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-[var(--border)]">
+                  <div className="relative">
+                    <Search
+                      size={12}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                    />
+                    <input
+                      autoFocus
+                      value={tagPickerQuery}
+                      onChange={(e) => setTagPickerQuery(e.target.value)}
+                      placeholder="Search tags…"
+                      className="w-full pl-7 pr-2 py-1.5 rounded-full border border-[var(--border)] bg-[var(--field)] text-xs outline-none focus:border-[color:var(--accent)]"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-56 overflow-y-auto py-1">
+                  {visibleTagOptions.length === 0 ? (
+                    <div className="px-3 py-2 text-xs italic text-[var(--muted)]">
+                      No tags match.
+                    </div>
+                  ) : (
+                    visibleTagOptions.map((t) => {
+                      const checked = tagFilters.includes(t);
+                      return (
+                        <label
+                          key={t}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--foreground)] cursor-pointer hover:bg-[var(--field)]/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setTagFilters((prev) =>
+                                checked
+                                  ? prev.filter((x) => x !== t)
+                                  : [...prev, t],
+                              )
+                            }
+                            className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
+                          />
+                          <span className="truncate">#{t}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                  {tagFilters.length > 0 && (
+                    <div className="border-t border-[var(--border)] p-2">
+                      <button
+                        type="button"
+                        onClick={() => setTagFilters([])}
+                        className="w-full rounded-full border border-[var(--border)] bg-[var(--field)] px-3 py-1 text-[11px] text-[var(--muted)] hover:border-[color:var(--accent)] hover:text-[var(--accent)] transition-colors"
+                      >
+                        Clear {tagFilters.length} selected
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </label>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-[var(--muted)] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={hideUnassigned}
+            onChange={(e) => setHideUnassigned(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
+          />
+          Hide unassigned
+        </label>
+      </div>
+
       {/* Filters */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-3">
@@ -302,30 +516,6 @@ export default function ReviewQueueCompetencies() {
             </button>
           )}
         </div>
-        {tagOptions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {tagOptions.map((t) => (
-              <button
-                key={t}
-                onClick={() =>
-                  setTagFilters((prev) =>
-                    prev.includes(t)
-                      ? prev.filter((x) => x !== t)
-                      : [...prev, t]
-                  )
-                }
-                className={cls(
-                  "rounded-full px-2.5 py-0.5 text-[11px] border transition-all",
-                  tagFilters.includes(t)
-                    ? "border-[color:var(--accent)] bg-[color:var(--accent)]/15 text-[var(--accent)]"
-                    : "border-[var(--border)] bg-[var(--field)] text-[var(--foreground)] hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
-                )}
-              >
-                #{t}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Proposal list */}

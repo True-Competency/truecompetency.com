@@ -912,6 +912,8 @@ export default function CompetenciesPage() {
       const nameTrim = propName.trim();
       if (!nameTrim) throw new Error("Please enter a competency name.");
       if (!propSubgoalId) throw new Error("Please choose a subgoal.");
+      if (propTagIds.length === 0)
+        throw new Error("Please select at least one tag.");
       const { data: u2 } = await supabase.auth.getUser();
       const uid = u2.user?.id;
       if (!uid) throw new Error("Please sign in again.");
@@ -1951,7 +1953,7 @@ export default function CompetenciesPage() {
 
               {tagsCatalog.length > 0 && (
                 <div className="grid gap-2 text-sm">
-                  <span className="text-[var(--muted)]">Tags</span>
+                  <span className="text-[var(--muted)]">Tags *</span>
                   <div className="flex flex-wrap gap-1.5">
                     {tagsCatalog.map((t) => (
                       <button
