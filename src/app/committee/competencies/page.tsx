@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   ArrowRight,
+  ChevronDown,
   GripVertical,
   Paperclip,
   Plus,
@@ -21,7 +22,25 @@ type Competency = {
   difficulty: string;
   tags: string[] | null;
   position: number | null;
+  subgoal_id: string | null;
   created_at: string;
+};
+
+type Domain = {
+  id: string;
+  name: string;
+  code: string;
+  position: number;
+  description: string | null;
+};
+
+type Subgoal = {
+  id: string;
+  domain_id: string;
+  name: string;
+  code: string;
+  position: number;
+  description: string | null;
 };
 
 type QuestionOption = {
@@ -64,6 +83,76 @@ type CompetencyRaw = Omit<Competency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
 };
 
+function byPositionThenCode<T extends { position: number; code: string }>(
+  a: T,
+  b: T,
+) {
+  if (a.position !== b.position) return a.position - b.position;
+  return a.code.localeCompare(b.code);
+}
+
+function CompetencyRow({
+  c,
+  questionCount,
+  onPreview,
+}: {
+  c: Competency;
+  questionCount: number;
+  onPreview: () => void;
+}) {
+  return (
+    <tr className="border-t border-[var(--border)] hover:bg-[color:var(--accent)]/3 transition-colors">
+      <td className="px-4 py-3 align-middle text-xs text-[var(--muted)]">
+        {c.position ?? "—"}
+      </td>
+      <td className="px-4 py-3 align-middle font-medium text-[var(--foreground)]">
+        {c.name}
+      </td>
+      <td className="px-4 py-3 align-middle">
+        <span
+          className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+          style={{ background: diffColor(c.difficulty), color: "#000" }}
+        >
+          {c.difficulty}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-middle">
+        {c.tags && c.tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 max-w-xs">
+            {c.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
+              >
+                #{t}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-[var(--muted)]">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3 align-middle">
+        {questionCount === 0 ? (
+          <span className="inline-flex w-[8.5rem] items-center justify-center rounded-full border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--err)] whitespace-nowrap">
+            No question
+          </span>
+        ) : (
+          <button
+            onClick={onPreview}
+            className="inline-flex w-[8.5rem] items-center justify-center gap-1.5 rounded-full border border-[color:var(--ok)]/35 bg-[color:var(--ok)]/12 px-3 py-1.5 text-xs font-semibold text-[var(--ok)] transition-colors hover:border-[color:var(--ok)] hover:bg-[color:var(--ok)]/20 whitespace-nowrap"
+          >
+            <span>
+              {questionCount} question{questionCount !== 1 ? "s" : ""}
+            </span>
+            <ArrowRight size={12} />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 const QUESTION_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 const QUESTION_MEDIA_ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -101,6 +190,8 @@ function diffColor(d: string): string {
 export default function CompetenciesPage() {
   const [rows, setRows] = useState<Competency[]>([]);
   const [tagsCatalog, setTagsCatalog] = useState<TagRow[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [subgoals, setSubgoals] = useState<Subgoal[]>([]);
   const [questionsByComp, setQuestionsByComp] = useState<
     Record<string, CompetencyQuestion[]>
   >({});
@@ -112,6 +203,19 @@ export default function CompetenciesPage() {
   const [query, setQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
 
+  // Accordion state — domain/subgoal expansion. All collapsed on initial render.
+  // Filter activation auto-expands matching sections; clearing the filter resets
+  // to all-collapsed (chosen over "preserve" so the chair gets a clean slate when
+  // they finish a search).
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedSubgoals, setExpandedSubgoals] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const UNASSIGNED_KEY = "__unassigned__";
+  const prevFilterActiveRef = useRef(false);
+
   // Propose Competency modal
   const [proposeOpen, setProposeOpen] = useState(false);
   const [propName, setPropName] = useState("");
@@ -120,6 +224,8 @@ export default function CompetenciesPage() {
   const [propTagIds, setPropTagIds] = useState<string[]>([]);
   const [propReason, setPropReason] = useState("");
   const [propBypass, setPropBypass] = useState(false);
+  const [propDomainId, setPropDomainId] = useState<string>("");
+  const [propSubgoalId, setPropSubgoalId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
   // Propose Question modal
@@ -149,8 +255,14 @@ export default function CompetenciesPage() {
   const [reorderInitialPos, setReorderInitialPos] = useState<
     Record<string, number>
   >({});
+  const [reorderInitialSubgoal, setReorderInitialSubgoal] = useState<
+    Record<string, string | null>
+  >({});
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [dragSourceDomainId, setDragSourceDomainId] = useState<string | null>(
+    null,
+  );
   const [lastMove, setLastMove] = useState<{ from: number; to: number } | null>(
     null,
   );
@@ -168,21 +280,31 @@ export default function CompetenciesPage() {
           { data, error },
           { data: tagsData, error: tagsErr },
           { data: questionRows, error: questionsErr },
+          { data: domainsData, error: domainsErr },
+          { data: subgoalsData, error: subgoalsErr },
         ] =
           await Promise.all([
             supabase
               .from("competencies")
-              .select("id, name, difficulty, tags, position, created_at")
+              .select("id, name, difficulty, tags, position, subgoal_id, created_at")
               .order("position", { ascending: true, nullsFirst: false }),
             supabase.from("tags").select("id, name").order("name", { ascending: true }),
             supabase
               .from("competency_questions")
               .select("id, competency_id, body, created_at")
               .order("created_at", { ascending: true }),
+            supabase
+              .from("domains")
+              .select("id, name, code, position, description"),
+            supabase
+              .from("subgoals")
+              .select("id, domain_id, name, code, position, description"),
           ]);
         if (error) throw error;
         if (tagsErr) throw tagsErr;
         if (questionsErr) throw questionsErr;
+        if (domainsErr) throw domainsErr;
+        if (subgoalsErr) throw subgoalsErr;
 
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
@@ -278,6 +400,8 @@ export default function CompetenciesPage() {
           setRows(resolved);
           setTagsCatalog((tagsData ?? []) as TagRow[]);
           setQuestionsByComp(questionsMap);
+          setDomains((domainsData ?? []) as Domain[]);
+          setSubgoals((subgoalsData ?? []) as Subgoal[]);
         }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
@@ -329,6 +453,119 @@ export default function CompetenciesPage() {
     () => tagsCatalog.map((t) => t.name),
     [tagsCatalog],
   );
+  const subgoalById = useMemo(
+    () => new Map(subgoals.map((s) => [s.id, s])),
+    [subgoals],
+  );
+  const domainById = useMemo(
+    () => new Map(domains.map((d) => [d.id, d])),
+    [domains],
+  );
+  const sortedDomains = useMemo(
+    () => [...domains].sort(byPositionThenCode),
+    [domains],
+  );
+  const subgoalsByDomain = useMemo(() => {
+    const m = new Map<string, Subgoal[]>();
+    for (const s of subgoals) {
+      const arr = m.get(s.domain_id) ?? [];
+      arr.push(s);
+      m.set(s.domain_id, arr);
+    }
+    for (const arr of m.values()) arr.sort(byPositionThenCode);
+    return m;
+  }, [subgoals]);
+  const groupedDraft = useMemo(() => {
+    const compsBySubgoal = new Map<string | null, Competency[]>();
+    reorderDraft.forEach((c) => {
+      const k = c.subgoal_id;
+      const arr = compsBySubgoal.get(k) ?? [];
+      arr.push(c);
+      compsBySubgoal.set(k, arr);
+    });
+    return {
+      domains: sortedDomains.map((d) => ({
+        domain: d,
+        subgoals: (subgoalsByDomain.get(d.id) ?? []).map((s) => ({
+          subgoal: s,
+          comps: compsBySubgoal.get(s.id) ?? [],
+        })),
+      })),
+      unassigned: compsBySubgoal.get(null) ?? [],
+    };
+  }, [reorderDraft, sortedDomains, subgoalsByDomain]);
+  const groupedList = useMemo(() => {
+    const compsBySubgoal = new Map<string | null, Competency[]>();
+    list.forEach((c) => {
+      const k = c.subgoal_id;
+      const arr = compsBySubgoal.get(k) ?? [];
+      arr.push(c);
+      compsBySubgoal.set(k, arr);
+    });
+    return {
+      domains: sortedDomains.map((d) => ({
+        domain: d,
+        subgoals: (subgoalsByDomain.get(d.id) ?? []).map((s) => ({
+          subgoal: s,
+          comps: compsBySubgoal.get(s.id) ?? [],
+        })),
+      })),
+      unassigned: compsBySubgoal.get(null) ?? [],
+    };
+  }, [list, sortedDomains, subgoalsByDomain]);
+
+  const filterActive = query.trim() !== "" || tagFilters.length > 0;
+
+  useEffect(() => {
+    if (filterActive) {
+      const dSet = new Set<string>();
+      const sgSet = new Set<string>();
+      for (const d of groupedList.domains) {
+        let domainHasMatch = false;
+        for (const sg of d.subgoals) {
+          if (sg.comps.length > 0) {
+            sgSet.add(sg.subgoal.id);
+            domainHasMatch = true;
+          }
+        }
+        if (domainHasMatch) dSet.add(d.domain.id);
+      }
+      if (groupedList.unassigned.length > 0) dSet.add(UNASSIGNED_KEY);
+      setExpandedDomains(dSet);
+      setExpandedSubgoals(sgSet);
+    } else if (prevFilterActiveRef.current) {
+      setExpandedDomains(new Set());
+      setExpandedSubgoals(new Set());
+    }
+    prevFilterActiveRef.current = filterActive;
+  }, [filterActive, groupedList]);
+
+  function toggleDomain(domainId: string) {
+    const willExpand = !expandedDomains.has(domainId);
+    setExpandedDomains((prev) => {
+      const next = new Set(prev);
+      if (next.has(domainId)) next.delete(domainId);
+      else next.add(domainId);
+      return next;
+    });
+    if (willExpand && domainId !== UNASSIGNED_KEY) {
+      const sgIds = (subgoalsByDomain.get(domainId) ?? []).map((s) => s.id);
+      setExpandedSubgoals((prev) => {
+        const next = new Set(prev);
+        sgIds.forEach((sid) => next.add(sid));
+        return next;
+      });
+    }
+  }
+
+  function toggleSubgoal(subgoalId: string) {
+    setExpandedSubgoals((prev) => {
+      const next = new Set(prev);
+      if (next.has(subgoalId)) next.delete(subgoalId);
+      else next.add(subgoalId);
+      return next;
+    });
+  }
   const qCompOptions = useMemo(() => {
     const needle = qCompQuery.trim().toLowerCase();
     return rows.filter((r) => {
@@ -389,6 +626,8 @@ export default function CompetenciesPage() {
   function closeProposeModal() {
     setProposeOpen(false);
     setPropBypass(false);
+    setPropDomainId("");
+    setPropSubgoalId("");
   }
 
   function closeQuestionModal() {
@@ -466,40 +705,142 @@ export default function CompetenciesPage() {
   }
 
   function openReorderModal() {
-    const initialMap: Record<string, number> = {};
+    const initialPos: Record<string, number> = {};
+    const initialSub: Record<string, string | null> = {};
     rows.forEach((c, idx) => {
-      initialMap[c.id] = c.position ?? idx + 1;
+      initialPos[c.id] = c.position ?? idx + 1;
+      initialSub[c.id] = c.subgoal_id;
     });
-    setReorderInitialPos(initialMap);
+    setReorderInitialPos(initialPos);
+    setReorderInitialSubgoal(initialSub);
     setReorderDraft(rows.slice());
     setLastMove(null);
     setMoveHistory([]);
     lastMoveKeyRef.current = null;
     setDragIndex(null);
     setDropIndex(null);
+    setDragSourceDomainId(null);
     setReorderOpen(true);
   }
 
-  function moveDraftRow(fromIndex: number, toIndex: number) {
+  function domainIdOfSubgoal(subgoalId: string | null): string | null {
+    if (!subgoalId) return null;
+    return subgoalById.get(subgoalId)?.domain_id ?? null;
+  }
+
+  function clearDragState() {
+    setDragIndex(null);
+    setDropIndex(null);
+    setDragSourceDomainId(null);
+  }
+
+  function recordMove(label: string) {
+    if (lastMoveKeyRef.current === label) return;
+    setLastMove({ from: 0, to: 0 });
+    setMoveHistory((prev) => [...prev, label]);
+    lastMoveKeyRef.current = label;
+  }
+
+  function onRowDragStart(e: React.DragEvent, comp: Competency) {
+    if (!isChair) return;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", comp.id);
+    setDragSourceDomainId(domainIdOfSubgoal(comp.subgoal_id));
+    setDragIndex(reorderDraft.findIndex((c) => c.id === comp.id));
+  }
+
+  function onRowDragOver(e: React.DragEvent, targetComp: Competency) {
+    const targetDomainId = domainIdOfSubgoal(targetComp.subgoal_id);
+    if (
+      dragSourceDomainId &&
+      targetDomainId &&
+      targetDomainId !== dragSourceDomainId
+    ) {
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropIndex(reorderDraft.findIndex((c) => c.id === targetComp.id));
+  }
+
+  function onRowDrop(e: React.DragEvent, targetComp: Competency) {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData("text/plain");
+    if (!sourceId) return clearDragState();
+
+    const targetDomainId = domainIdOfSubgoal(targetComp.subgoal_id);
+    if (
+      dragSourceDomainId &&
+      targetDomainId &&
+      targetDomainId !== dragSourceDomainId
+    ) {
+      return clearDragState();
+    }
+
     setReorderDraft((prev) => {
-      if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) {
-        return prev;
-      }
-      if (fromIndex === toIndex) return prev;
+      const fromIdx = prev.findIndex((c) => c.id === sourceId);
+      const toIdx = prev.findIndex((c) => c.id === targetComp.id);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return prev;
       const next = prev.slice();
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      const moveKey = `${fromIndex + 1}->${toIndex + 1}`;
-      if (lastMoveKeyRef.current !== moveKey) {
-        setLastMove({ from: fromIndex + 1, to: toIndex + 1 });
-        setMoveHistory((prevHistory) => [
-          ...prevHistory,
-          `${fromIndex + 1} -> ${toIndex + 1}`,
-        ]);
-        lastMoveKeyRef.current = moveKey;
+      const [moved] = next.splice(fromIdx, 1);
+      const adoptedSubgoal = targetComp.subgoal_id;
+      const subgoalChanged = moved.subgoal_id !== adoptedSubgoal;
+      moved.subgoal_id = adoptedSubgoal;
+      next.splice(toIdx, 0, moved);
+      const sgName = adoptedSubgoal
+        ? subgoalById.get(adoptedSubgoal)?.code ?? "?"
+        : "Unassigned";
+      recordMove(
+        subgoalChanged
+          ? `"${moved.name.slice(0, 28)}…" → ${sgName}`
+          : `"${moved.name.slice(0, 28)}…" reordered`,
+      );
+      return next;
+    });
+    clearDragState();
+  }
+
+  function onSubgoalDragOver(e: React.DragEvent, subgoal: Subgoal) {
+    if (dragSourceDomainId && subgoal.domain_id !== dragSourceDomainId) {
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+
+  function onSubgoalDrop(e: React.DragEvent, subgoal: Subgoal) {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData("text/plain");
+    if (!sourceId) return clearDragState();
+    if (dragSourceDomainId && subgoal.domain_id !== dragSourceDomainId) {
+      return clearDragState();
+    }
+
+    setReorderDraft((prev) => {
+      const fromIdx = prev.findIndex((c) => c.id === sourceId);
+      if (fromIdx < 0) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(fromIdx, 1);
+      const subgoalChanged = moved.subgoal_id !== subgoal.id;
+      moved.subgoal_id = subgoal.id;
+      let insertAt = next.length;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].subgoal_id === subgoal.id) {
+          insertAt = i + 1;
+          break;
+        }
+      }
+      next.splice(insertAt, 0, moved);
+      if (subgoalChanged) {
+        recordMove(
+          `"${moved.name.slice(0, 28)}…" → ${subgoal.code} (end)`,
+        );
       }
       return next;
     });
+    clearDragState();
   }
 
   async function saveReorder() {
@@ -507,19 +848,55 @@ export default function CompetenciesPage() {
     try {
       setReorderSaving(true);
       setErr(null);
-      const orderedIds = reorderDraft.map((c) => c.id);
-      const { error } = await supabase.rpc("chair_reorder_competencies", {
-        p_ordered_ids: orderedIds,
-      });
-      if (error) throw error;
+
+      const orderedIds: string[] = [];
+      for (const d of groupedDraft.domains) {
+        for (const sg of d.subgoals) {
+          for (const c of sg.comps) orderedIds.push(c.id);
+        }
+      }
+      for (const c of groupedDraft.unassigned) orderedIds.push(c.id);
+
+      if (orderedIds.length !== reorderDraft.length) {
+        throw new Error("Internal error: reorder list size mismatch.");
+      }
+
+      const moves = reorderDraft.filter(
+        (c) => c.subgoal_id !== reorderInitialSubgoal[c.id],
+      );
+
+      if (moves.length > 0) {
+        const { error: reassignErr } = await supabase.rpc(
+          "chair_reassign_competency_subgoals",
+          {
+            p_ids: moves.map((m) => m.id),
+            p_subgoal_ids: moves.map((m) => m.subgoal_id),
+          },
+        );
+        if (reassignErr) throw reassignErr;
+      }
+
+      const { error: rpcErr } = await supabase.rpc(
+        "chair_reorder_competencies",
+        { p_ordered_ids: orderedIds },
+      );
+      if (rpcErr) throw rpcErr;
+
+      const idToPosition = new Map(
+        orderedIds.map((id, idx) => [id, idx + 1]),
+      );
       setRows(
-        reorderDraft.map((c, idx) => ({
+        reorderDraft.map((c) => ({
           ...c,
-          position: idx + 1,
+          position: idToPosition.get(c.id) ?? c.position,
         })),
       );
       setReorderOpen(false);
-      showToast("Competency order updated.");
+      showToast(
+        moves.length > 0
+          ? `Order updated. ${moves.length} competenc${moves.length === 1 ? "y" : "ies"} moved between subgoals.`
+          : "Competency order updated.",
+      );
     } catch (e) {
       setErr(getErrorMessage(e));
     } finally {
@@ -534,6 +911,7 @@ export default function CompetenciesPage() {
       setErr(null);
       const nameTrim = propName.trim();
       if (!nameTrim) throw new Error("Please enter a competency name.");
+      if (!propSubgoalId) throw new Error("Please choose a subgoal.");
       const { data: u2 } = await supabase.auth.getUser();
       const uid = u2.user?.id;
       if (!uid) throw new Error("Please sign in again.");
@@ -545,6 +923,7 @@ export default function CompetenciesPage() {
             p_name: nameTrim,
             p_difficulty: propDifficulty,
             p_tags: propTagIds,
+            p_subgoal_id: propSubgoalId,
           },
         );
         if (rpcErr) throw rpcErr;
@@ -553,7 +932,7 @@ export default function CompetenciesPage() {
         }
         const { data: inserted, error } = await supabase
           .from("competencies")
-          .select("id, name, difficulty, tags, position, created_at")
+          .select("id, name, difficulty, tags, position, subgoal_id, created_at")
           .eq("id", newCompetencyId)
           .single<CompetencyRaw>();
         if (error) throw error;
@@ -575,6 +954,7 @@ export default function CompetenciesPage() {
           tags: propTagIds,
           justification: propReason.trim() || null,
           suggested_by: uid,
+          subgoal_id: propSubgoalId,
         });
         if (error) throw error;
       }
@@ -584,6 +964,8 @@ export default function CompetenciesPage() {
       setPropDifficulty("Intermediate");
       setPropReason("");
       setPropBypass(false);
+      setPropDomainId("");
+      setPropSubgoalId("");
       showToast(
         directInsert
           ? "Competency added directly."
@@ -867,118 +1249,185 @@ export default function CompetenciesPage() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="min-h-0 flex-1">
+      {/* Domain cards */}
+      <div className="min-h-0 flex-1 overflow-auto">
         {loading ? (
           <div className="text-sm text-[var(--muted)]">Loading…</div>
+        ) : list.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            No competencies match your filters.
+          </div>
         ) : (
-          <div className="h-full overflow-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-            <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border)] bg-[var(--field)]/40">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-12">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)]">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-36">
-                  Difficulty
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)]">
-                  Tags
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-32">
-                  Added
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] w-52">
-                  Questions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-8 text-center text-sm text-[var(--muted)]"
-                  >
-                    No competencies match your filters.
-                  </td>
-                </tr>
-              )}
-              {list.map((c, idx) => (
-                <tr
-                  key={c.id}
-                  className="border-t border-[var(--border)] hover:bg-[color:var(--accent)]/3 transition-colors"
+          <div className="flex flex-col gap-3 pb-4">
+            {groupedList.domains.map(({ domain, subgoals: sgs }) => {
+              const dExpanded = expandedDomains.has(domain.id);
+              const compCount = sgs.reduce((n, sg) => n + sg.comps.length, 0);
+              return (
+                <section
+                  key={domain.id}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
                 >
-                  <td className="px-4 py-3 align-middle text-xs text-[var(--muted)]">
-                    {c.position ?? idx + 1}
-                  </td>
-                  <td className="px-4 py-3 align-middle font-medium text-[var(--foreground)]">
-                    {c.name}
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <span
-                      className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                      style={{
-                        background: diffColor(c.difficulty),
-                        color: "#000",
-                      }}
-                    >
-                      {c.difficulty}
+                  <button
+                    onClick={() => toggleDomain(domain.id)}
+                    aria-expanded={dExpanded}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-[color:var(--accent)]/4 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ChevronDown
+                        size={18}
+                        className={cls(
+                          "flex-shrink-0 text-[var(--muted)] transition-transform",
+                          !dExpanded && "-rotate-90",
+                        )}
+                      />
+                      <h2
+                        className="text-base font-bold tracking-tight text-[var(--foreground)] text-left truncate"
+                        style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+                      >
+                        <span className="text-[var(--accent)]">
+                          {domain.code}.
+                        </span>{" "}
+                        {domain.name}
+                      </h2>
+                    </div>
+                    <span className="flex-shrink-0 text-xs text-[var(--muted)]">
+                      {compCount} competenc{compCount === 1 ? "y" : "ies"}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    {c.tags && c.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 max-w-xs">
-                        {c.tags.map((t) => (
-                          <span
-                            key={t}
-                            className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
-                          >
-                            #{t}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-[var(--muted)]">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 align-middle text-xs text-[var(--muted)] whitespace-nowrap">
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    {(() => {
-                      const questionCount = questionsByComp[c.id]?.length ?? 0;
-                      if (questionCount === 0) {
-                        return (
-                          <span className="inline-flex items-center rounded-full border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--err)]">
-                            No question
-                          </span>
-                        );
-                      }
+                  </button>
 
-                      return (
-                        <button
-                          onClick={() => setQuestionPreviewComp(c)}
-                          className="group inline-flex items-center gap-1.5 rounded-full border border-[color:var(--ok)]/35 bg-[color:var(--ok)]/12 px-3 py-1.5 text-xs font-semibold text-[var(--ok)] transition-all hover:scale-[1.15] hover:bg-[var(--ok)] hover:text-white"
+                  {dExpanded && (
+                    <div className="border-t border-[var(--border)]">
+                      {sgs.map(({ subgoal, comps }) => {
+                        const sgExpanded = expandedSubgoals.has(subgoal.id);
+                        return (
+                          <div
+                            key={subgoal.id}
+                            className="border-t border-[var(--border)] first:border-t-0"
+                          >
+                            <button
+                              onClick={() => toggleSubgoal(subgoal.id)}
+                              aria-expanded={sgExpanded}
+                              className="w-full flex items-center justify-between gap-3 px-5 py-2.5 bg-[color:var(--accent)]/6 border-l-2 border-[color:var(--accent)]/40 hover:bg-[color:var(--accent)]/12 transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <ChevronDown
+                                  size={14}
+                                  className={cls(
+                                    "flex-shrink-0 text-[var(--accent)] transition-transform",
+                                    !sgExpanded && "-rotate-90",
+                                  )}
+                                />
+                                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)] text-left truncate">
+                                  <span className="text-[var(--accent)]">
+                                    {subgoal.code}
+                                  </span>{" "}
+                                  {subgoal.name}
+                                </h3>
+                              </div>
+                              <span className="flex-shrink-0 text-[10px] text-[var(--muted)]">
+                                {comps.length} competenc
+                                {comps.length === 1 ? "y" : "ies"}
+                              </span>
+                            </button>
+
+                            {sgExpanded && (
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                  <tbody>
+                                    {comps.length === 0 ? (
+                                      <tr>
+                                        <td
+                                          colSpan={5}
+                                          className="px-5 py-3 text-xs italic text-[var(--muted)]"
+                                        >
+                                          No competencies in this subgoal yet.
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      comps.map((c) => (
+                                        <CompetencyRow
+                                          key={c.id}
+                                          c={c}
+                                          questionCount={
+                                            questionsByComp[c.id]?.length ?? 0
+                                          }
+                                          onPreview={() =>
+                                            setQuestionPreviewComp(c)
+                                          }
+                                        />
+                                      ))
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+
+            {groupedList.unassigned.length > 0 && (() => {
+              const dExpanded = expandedDomains.has(UNASSIGNED_KEY);
+              return (
+                <section className="rounded-2xl border-2 border-[color:var(--warn)]/40 bg-[var(--surface)] overflow-hidden">
+                  <button
+                    onClick={() => toggleDomain(UNASSIGNED_KEY)}
+                    aria-expanded={dExpanded}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 bg-[color:var(--warn)]/8 hover:bg-[color:var(--warn)]/14 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ChevronDown
+                        size={18}
+                        className={cls(
+                          "flex-shrink-0 text-[var(--muted)] transition-transform",
+                          !dExpanded && "-rotate-90",
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <h2
+                          className="text-base font-bold tracking-tight text-[var(--foreground)] text-left"
+                          style={{
+                            fontFamily: "var(--font-heading, sans-serif)",
+                          }}
                         >
-                          <span>
-                            {questionCount} question{questionCount !== 1 ? "s" : ""}
-                          </span>
-                          <ArrowRight
-                            size={12}
-                            className="transition-all group-hover:translate-x-0.5"
-                          />
-                        </button>
-                      );
-                    })()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
+                          Unassigned competencies
+                        </h2>
+                        <p className="mt-0.5 text-xs text-[var(--warn)] text-left">
+                          Needs categorizing — not yet linked to a subgoal.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="flex-shrink-0 text-xs text-[var(--muted)]">
+                      {groupedList.unassigned.length} competenc
+                      {groupedList.unassigned.length === 1 ? "y" : "ies"}
+                    </span>
+                  </button>
+
+                  {dExpanded && (
+                    <div className="border-t border-[var(--border)] overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <tbody>
+                          {groupedList.unassigned.map((c) => (
+                            <CompetencyRow
+                              key={c.id}
+                              c={c}
+                              questionCount={
+                                questionsByComp[c.id]?.length ?? 0
+                              }
+                              onPreview={() => setQuestionPreviewComp(c)}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -1175,112 +1624,217 @@ export default function CompetenciesPage() {
             </div>
 
             <p className="text-sm text-[var(--muted)] mb-3">
-              Changes here update the competency order for everyone in the
-              committee dashboard. Please review carefully before saving.
+              Drag to reorder within a subgoal or move between subgoals in the
+              same domain. Cross-domain moves are blocked.
             </p>
 
-            <div
-              className="space-y-2 flex-1 overflow-y-auto pr-1"
-            >
-              {reorderDraft.map((c, idx) => (
-                <div
-                  key={c.id}
-                  draggable
-                  onDragStart={(e) => {
-                    setDragIndex(idx);
-                    setDropIndex(idx);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", c.id);
-                  }}
-                  onDragEnter={() => {
-                    if (dragIndex !== null) setDropIndex(idx);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (dragIndex === null) return;
-                    moveDraftRow(dragIndex, dropIndex ?? idx);
-                    setDragIndex(null);
-                    setDropIndex(null);
-                  }}
-                  onDragEnd={() => {
-                    setDragIndex(null);
-                    setDropIndex(null);
-                  }}
-                  className={cls(
-                    "flex items-start gap-3 rounded-xl border px-3 py-3 min-h-[76px] transition-all duration-150",
-                    dragIndex === idx &&
-                      "border-[color:var(--accent)]/70 bg-[var(--field)]/60 opacity-65 scale-[0.995]",
-                    dropIndex === idx &&
-                      dragIndex !== null &&
-                      dragIndex !== idx &&
-                      "border-[color:var(--accent)]/70 bg-[var(--field)]/90",
-                    dragIndex !== idx &&
-                      !(dropIndex === idx && dragIndex !== null) &&
-                      "border-[var(--border)] bg-[var(--field)]"
-                  )}
-                >
-                  <span className="w-8 text-xs text-[var(--muted)] text-right pt-1 select-none">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--foreground)] leading-snug line-clamp-2">
-                      {c.name}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span
-                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{
-                          background: diffColor(c.difficulty),
-                          color: "#000",
-                        }}
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+              {groupedDraft.domains.map(({ domain, subgoals: sgs }) => {
+                const dimmed =
+                  dragSourceDomainId !== null &&
+                  dragSourceDomainId !== domain.id;
+                return (
+                  <section
+                    key={domain.id}
+                    className={cls(
+                      "rounded-xl border-2 transition-opacity",
+                      dimmed
+                        ? "opacity-40 pointer-events-none border-[var(--border)]"
+                        : "border-[color:var(--accent)]/30",
+                    )}
+                  >
+                    <header className="px-3 py-2 border-b-2 border-[color:var(--accent)]/20 bg-[color:var(--accent)]/8 rounded-t-xl">
+                      <h2
+                        className="text-sm font-bold tracking-tight text-[var(--foreground)]"
+                        style={{ fontFamily: "var(--font-heading, sans-serif)" }}
                       >
-                        {c.difficulty}
-                      </span>
-                      {(c.tags ?? []).slice(0, 4).map((t) => (
-                        <span
-                          key={`${c.id}_${t}`}
-                          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                        <span className="text-[var(--accent)]">{domain.code}.</span>{" "}
+                        {domain.name}
+                      </h2>
+                    </header>
+                    <div className="p-2 space-y-3">
+                      {sgs.map(({ subgoal, comps }) => (
+                        <div
+                          key={subgoal.id}
+                          onDragOver={(e) => onSubgoalDragOver(e, subgoal)}
+                          onDrop={(e) => onSubgoalDrop(e, subgoal)}
+                          className="rounded-lg bg-[var(--field)]/30 p-2"
                         >
-                          #{t}
-                        </span>
+                          <h3 className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                            <span className="text-[var(--foreground)]">
+                              {subgoal.code}
+                            </span>{" "}
+                            {subgoal.name}
+                          </h3>
+                          <div className="space-y-1.5">
+                            {comps.length === 0 && (
+                              <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/40 px-3 py-3 text-[11px] italic text-[var(--muted)]">
+                                Empty — drop here to add competencies.
+                              </div>
+                            )}
+                            {comps.map((c) => {
+                              const idx = reorderDraft.findIndex(
+                                (r) => r.id === c.id,
+                              );
+                              const isDragging = dragIndex === idx;
+                              const isDropTarget =
+                                dropIndex === idx &&
+                                dragIndex !== null &&
+                                dragIndex !== idx;
+                              return (
+                                <div
+                                  key={c.id}
+                                  draggable
+                                  onDragStart={(e) => onRowDragStart(e, c)}
+                                  onDragOver={(e) => onRowDragOver(e, c)}
+                                  onDrop={(e) => onRowDrop(e, c)}
+                                  onDragEnd={clearDragState}
+                                  className={cls(
+                                    "flex items-start gap-3 rounded-lg border px-3 py-2.5 min-h-[64px] transition-all duration-150 bg-[var(--surface)]",
+                                    isDragging &&
+                                      "border-[color:var(--accent)]/70 opacity-65 scale-[0.995]",
+                                    isDropTarget &&
+                                      "border-[color:var(--accent)]/70 bg-[var(--field)]/90",
+                                    !isDragging &&
+                                      !isDropTarget &&
+                                      "border-[var(--border)]",
+                                  )}
+                                >
+                                  <span className="w-8 text-xs text-[var(--muted)] text-right pt-0.5 select-none">
+                                    {c.position ?? "—"}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[var(--foreground)] leading-snug line-clamp-2">
+                                      {c.name}
+                                    </p>
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                      <span
+                                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        style={{
+                                          background: diffColor(c.difficulty),
+                                          color: "#000",
+                                        }}
+                                      >
+                                        {c.difficulty}
+                                      </span>
+                                      {(c.tags ?? []).slice(0, 4).map((t) => (
+                                        <span
+                                          key={`${c.id}_${t}`}
+                                          className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                                        >
+                                          #{t}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className="pt-1 text-[var(--muted)] cursor-grab active:cursor-grabbing"
+                                    title="Drag to reorder"
+                                    aria-label={`Drag ${c.name} to reorder`}
+                                  >
+                                    <GripVertical size={16} />
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       ))}
                     </div>
+                  </section>
+                );
+              })}
+
+              {groupedDraft.unassigned.length > 0 && (
+                <section className="rounded-xl border-2 border-[color:var(--warn)]/30">
+                  <header className="px-3 py-2 border-b-2 border-[color:var(--warn)]/20 bg-[color:var(--warn)]/8 rounded-t-xl">
+                    <h2
+                      className="text-sm font-bold tracking-tight text-[var(--foreground)]"
+                      style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+                    >
+                      Unassigned
+                    </h2>
+                    <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                      Drag out to assign. Drops back here are blocked.
+                    </p>
+                  </header>
+                  <div className="p-2 space-y-1.5">
+                    {groupedDraft.unassigned.map((c) => {
+                      const idx = reorderDraft.findIndex((r) => r.id === c.id);
+                      const isDragging = dragIndex === idx;
+                      return (
+                        <div
+                          key={c.id}
+                          draggable
+                          onDragStart={(e) => onRowDragStart(e, c)}
+                          onDragEnd={clearDragState}
+                          className={cls(
+                            "flex items-start gap-3 rounded-lg border px-3 py-2.5 min-h-[64px] bg-[var(--surface)]",
+                            isDragging
+                              ? "border-[color:var(--accent)]/70 opacity-65"
+                              : "border-[var(--border)]",
+                          )}
+                        >
+                          <span className="w-8 text-xs text-[var(--muted)] text-right pt-0.5 select-none">
+                            {c.position ?? "—"}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--foreground)] leading-snug line-clamp-2">
+                              {c.name}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <span
+                                className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                style={{
+                                  background: diffColor(c.difficulty),
+                                  color: "#000",
+                                }}
+                              >
+                                {c.difficulty}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="pt-1 text-[var(--muted)] cursor-grab active:cursor-grabbing">
+                            <GripVertical size={16} />
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <span
-                    className="pt-1.5 text-[var(--muted)] cursor-grab active:cursor-grabbing"
-                    title="Drag to reorder"
-                    aria-label={`Drag ${c.name} to reorder`}
-                  >
-                    <GripVertical size={16} />
-                  </span>
-                </div>
-              ))}
+                </section>
+              )}
             </div>
 
             <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-xs text-[var(--muted)] flex-shrink-0">
-              {lastMove ? (
-                <>
-                  Changes made:{" "}
-                  <span className="font-semibold text-[var(--foreground)]">
-                    {moveHistory.join(", ")}
-                  </span>{" "}
-                  ·{" "}
-                  <span className="font-semibold text-[var(--foreground)]">
-                    {
-                      reorderDraft.filter(
-                        (c, idx) =>
-                          (reorderInitialPos[c.id] ?? idx + 1) !== idx + 1,
-                      ).length
-                    }
-                  </span>{" "}
-                  item(s) reordered
-                </>
-              ) : (
-                "No order changes yet."
+              {lastMove ? (() => {
+                const newPos = new Map<string, number>();
+                let i = 1;
+                for (const d of groupedDraft.domains) {
+                  for (const sg of d.subgoals) {
+                    for (const c of sg.comps) newPos.set(c.id, i++);
+                  }
+                }
+                for (const c of groupedDraft.unassigned) newPos.set(c.id, i++);
+                const changedCount = reorderDraft.filter((c) =>
+                  newPos.get(c.id) !== reorderInitialPos[c.id] ||
+                  c.subgoal_id !== reorderInitialSubgoal[c.id],
+                ).length;
+                const recent = moveHistory.slice(-3).join(" · ");
+                return (
+                  <>
+                    Recent:{" "}
+                    <span className="font-semibold text-[var(--foreground)]">
+                      {recent}
+                    </span>{" "}
+                    ·{" "}
+                    <span className="font-semibold text-[var(--foreground)]">
+                      {changedCount}
+                    </span>{" "}
+                    row{changedCount === 1 ? "" : "s"} changed
+                  </>
+                );
+              })() : (
+                "No changes yet."
               )}
             </div>
 
@@ -1352,6 +1906,44 @@ export default function CompetenciesPage() {
                   {DIFF_ORDER.map((d) => (
                     <option key={d} value={d}>
                       {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-1 text-sm">
+                <span className="text-[var(--muted)]">Domain *</span>
+                <select
+                  value={propDomainId}
+                  onChange={(e) => {
+                    setPropDomainId(e.target.value);
+                    setPropSubgoalId("");
+                  }}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none w-full"
+                >
+                  <option value="">Select a domain…</option>
+                  {sortedDomains.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code}. {d.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-1 text-sm">
+                <span className="text-[var(--muted)]">Subgoal *</span>
+                <select
+                  value={propSubgoalId}
+                  onChange={(e) => setPropSubgoalId(e.target.value)}
+                  disabled={!propDomainId}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--field)] px-3 py-2 text-sm outline-none w-full disabled:opacity-60"
+                >
+                  <option value="">
+                    {propDomainId ? "Select a subgoal…" : "Choose a domain first"}
+                  </option>
+                  {(subgoalsByDomain.get(propDomainId) ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} {s.name}
                     </option>
                   ))}
                 </select>
