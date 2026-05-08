@@ -356,7 +356,7 @@ export default function ReviewQueueCompetencies() {
               >
                 <div className="flex flex-col md:flex-row">
                   {/* Left 70% — info */}
-                  <div className="flex-1 md:basis-[70%] p-5 min-w-0">
+                  <div className="flex-1 md:basis-[70%] p-5 min-w-0 flex flex-col">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h3 className="text-base font-semibold text-[var(--foreground)] leading-snug">
@@ -405,7 +405,7 @@ export default function ReviewQueueCompetencies() {
                       </p>
                     )}
 
-                    <p className="mt-3 text-xs text-[var(--muted)]">
+                    <p className="mt-auto pt-3 text-xs text-[var(--muted)]">
                       Proposed by{" "}
                       <span className="font-semibold text-[var(--foreground)]">
                         {proposerName}
