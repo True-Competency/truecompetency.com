@@ -587,6 +587,16 @@ export default function CompetenciesPage() {
   }, [list, sortedDomains, subgoalsByDomain]);
 
   const filterActive = query.trim() !== "" || tagFilters.length > 0;
+  const didInitialExpandRef = useRef(false);
+
+  // First time domains load, default to all domains expanded with all subgoals collapsed.
+  useEffect(() => {
+    if (didInitialExpandRef.current) return;
+    if (sortedDomains.length === 0) return;
+    setExpandedDomains(new Set(sortedDomains.map((d) => d.id)));
+    setExpandedSubgoals(new Set());
+    didInitialExpandRef.current = true;
+  }, [sortedDomains]);
 
   useEffect(() => {
     if (filterActive) {
@@ -606,28 +616,20 @@ export default function CompetenciesPage() {
       setExpandedDomains(dSet);
       setExpandedSubgoals(sgSet);
     } else if (prevFilterActiveRef.current) {
-      setExpandedDomains(new Set());
+      // Clearing the filter returns to the default: domains open, subgoals closed.
+      setExpandedDomains(new Set(sortedDomains.map((d) => d.id)));
       setExpandedSubgoals(new Set());
     }
     prevFilterActiveRef.current = filterActive;
-  }, [filterActive, groupedList]);
+  }, [filterActive, groupedList, sortedDomains]);
 
   function toggleDomain(domainId: string) {
-    const willExpand = !expandedDomains.has(domainId);
     setExpandedDomains((prev) => {
       const next = new Set(prev);
       if (next.has(domainId)) next.delete(domainId);
       else next.add(domainId);
       return next;
     });
-    if (willExpand && domainId !== UNASSIGNED_KEY) {
-      const sgIds = (subgoalsByDomain.get(domainId) ?? []).map((s) => s.id);
-      setExpandedSubgoals((prev) => {
-        const next = new Set(prev);
-        sgIds.forEach((sid) => next.add(sid));
-        return next;
-      });
-    }
   }
 
   function toggleSubgoal(subgoalId: string) {
@@ -1421,7 +1423,7 @@ export default function CompetenciesPage() {
                                   {subgoal.name}
                                 </h3>
                               </div>
-                              <span className="flex-shrink-0 text-[10px] text-[var(--muted)]">
+                              <span className="flex-shrink-0 text-[11px] text-[var(--muted)]">
                                 {comps.length} competenc
                                 {comps.length === 1 ? "y" : "ies"}
                               </span>
