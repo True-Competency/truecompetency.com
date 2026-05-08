@@ -1,7 +1,7 @@
 // src/app/committee/competencies/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   ArrowRight,
@@ -89,6 +89,78 @@ function byPositionThenCode<T extends { position: number; code: string }>(
 ) {
   if (a.position !== b.position) return a.position - b.position;
   return a.code.localeCompare(b.code);
+}
+
+function QCompPickerButton({
+  c,
+  active,
+  onSelect,
+}: {
+  c: Competency;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cls(
+        "w-full px-4 py-3 text-left transition-all",
+        active ? "bg-[color:var(--accent)]/10" : "hover:bg-[var(--field)]",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cls(
+            "flex-shrink-0 overflow-hidden pt-0.5 transition-all",
+            active ? "w-5 opacity-100" : "w-0 opacity-0",
+          )}
+          aria-hidden={!active}
+        >
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-white">
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3.5 8.5 6.5 11.5 12.5 5.5" />
+            </svg>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-[var(--foreground)]">
+              {c.name}
+            </div>
+            {(c.tags ?? []).length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {(c.tags ?? []).slice(0, 4).map((t) => (
+                  <span
+                    key={`${c.id}_${t}`}
+                    className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
+                  >
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: diffColor(c.difficulty), color: "#000" }}
+            >
+              {c.difficulty}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
 }
 
 function CompetencyRow({
@@ -582,6 +654,29 @@ export default function CompetenciesPage() {
       return inSearch && tagsOk;
     });
   }, [qCompQuery, qCompTagFilters, rows]);
+  const qCompGrouped = useMemo(() => {
+    const compsBySubgoal = new Map<string | null, Competency[]>();
+    qCompOptions.forEach((c) => {
+      const k = c.subgoal_id;
+      const arr = compsBySubgoal.get(k) ?? [];
+      arr.push(c);
+      compsBySubgoal.set(k, arr);
+    });
+    return {
+      domains: sortedDomains
+        .map((d) => ({
+          domain: d,
+          subgoals: (subgoalsByDomain.get(d.id) ?? [])
+            .map((s) => ({
+              subgoal: s,
+              comps: compsBySubgoal.get(s.id) ?? [],
+            }))
+            .filter((sg) => sg.comps.length > 0),
+        }))
+        .filter((d) => d.subgoals.length > 0),
+      unassigned: compsBySubgoal.get(null) ?? [],
+    };
+  }, [qCompOptions, sortedDomains, subgoalsByDomain]);
   const selectedQComp = useMemo(
     () => rows.find((r) => r.id === qCompId) ?? null,
     [qCompId, rows],
@@ -2114,83 +2209,76 @@ export default function CompetenciesPage() {
                     </div>
                   )}
 
-                  <div className="max-h-64 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+                  <div className="max-h-72 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
                     {qCompOptions.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm text-[var(--muted)]">
                         No competencies match that search.
                       </div>
                     ) : (
-                      <div className="divide-y divide-[var(--border)]">
-                        {qCompOptions.map((c) => {
-                          const active = c.id === qCompId;
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => setQCompId(c.id)}
-                              className={cls(
-                                "w-full px-4 py-3 text-left transition-all",
-                                active
-                                  ? "bg-[color:var(--accent)]/10"
-                                  : "hover:bg-[var(--field)]",
-                              )}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className={cls(
-                                    "flex-shrink-0 overflow-hidden pt-0.5 transition-all",
-                                    active ? "w-5 opacity-100" : "w-0 opacity-0",
-                                  )}
-                                  aria-hidden={!active}
-                                >
-                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-white">
-                                    <svg
-                                      viewBox="0 0 16 16"
-                                      className="h-3.5 w-3.5"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2.2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M3.5 8.5 6.5 11.5 12.5 5.5" />
-                                    </svg>
-                                  </div>
+                      <div>
+                        {qCompGrouped.domains.map(({ domain, subgoals: sgs }) => (
+                          <section key={domain.id}>
+                            <div className="px-4 py-2 bg-[color:var(--accent)]/8 border-y border-[color:var(--accent)]/20 sticky top-0 z-10 backdrop-blur-sm">
+                              <h4
+                                className="text-sm font-bold tracking-tight text-[var(--foreground)]"
+                                style={{
+                                  fontFamily: "var(--font-heading, sans-serif)",
+                                }}
+                              >
+                                <span className="text-[var(--accent)]">
+                                  {domain.code}.
+                                </span>{" "}
+                                {domain.name}
+                              </h4>
+                            </div>
+                            {sgs.map(({ subgoal, comps }) => (
+                              <Fragment key={subgoal.id}>
+                                <div className="px-4 py-1.5 bg-[color:var(--accent)]/6 border-l-2 border-[color:var(--accent)]/40">
+                                  <h5 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                                    <span className="text-[var(--accent)]">
+                                      {subgoal.code}
+                                    </span>{" "}
+                                    {subgoal.name}
+                                  </h5>
                                 </div>
-                                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-medium text-[var(--foreground)]">
-                                      {c.name}
-                                    </div>
-                                    {(c.tags ?? []).length > 0 && (
-                                      <div className="mt-1 flex flex-wrap gap-1.5">
-                                        {(c.tags ?? []).slice(0, 4).map((t) => (
-                                          <span
-                                            key={`${c.id}_${t}`}
-                                            className="rounded-full border border-[var(--border)] bg-[var(--field)] px-2 py-0.5 text-[10px] text-[var(--muted)]"
-                                          >
-                                            #{t}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                      style={{
-                                        background: diffColor(c.difficulty),
-                                        color: "#000",
-                                      }}
-                                    >
-                                      {c.difficulty}
-                                    </span>
-                                  </div>
+                                <div className="divide-y divide-[var(--border)]">
+                                  {comps.map((c) => (
+                                    <QCompPickerButton
+                                      key={c.id}
+                                      c={c}
+                                      active={c.id === qCompId}
+                                      onSelect={() => setQCompId(c.id)}
+                                    />
+                                  ))}
                                 </div>
-                              </div>
-                            </button>
-                          );
-                        })}
+                              </Fragment>
+                            ))}
+                          </section>
+                        ))}
+                        {qCompGrouped.unassigned.length > 0 && (
+                          <section>
+                            <div className="px-4 py-2 bg-[color:var(--warn)]/8 border-y border-[color:var(--warn)]/30 sticky top-0 z-10 backdrop-blur-sm">
+                              <h4
+                                className="text-sm font-bold tracking-tight text-[var(--foreground)]"
+                                style={{
+                                  fontFamily: "var(--font-heading, sans-serif)",
+                                }}
+                              >
+                                Unassigned
+                              </h4>
+                            </div>
+                            <div className="divide-y divide-[var(--border)]">
+                              {qCompGrouped.unassigned.map((c) => (
+                                <QCompPickerButton
+                                  key={c.id}
+                                  c={c}
+                                  active={c.id === qCompId}
+                                  onSelect={() => setQCompId(c.id)}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        )}
                       </div>
                     )}
                   </div>
