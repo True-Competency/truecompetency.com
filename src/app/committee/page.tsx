@@ -45,7 +45,6 @@ type DashboardStats = {
   coveredCompetencies: number;
   emptyCompetencies: number;
   pendingCompetencies: number;
-  pendingQuestions: number;
   totalMembers: number;
 };
 
@@ -109,23 +108,17 @@ export default function CommitteeDashboard() {
           ).length;
         }
 
-        // ── 4. Pending proposals + questions + member count ───────────────
-        const [
-          { count: pendingComps },
-          { count: pendingQs },
-          { count: memberCount },
-        ] = await Promise.all([
-          supabase
-            .from("competencies_stage")
-            .select("id", { count: "exact", head: true }),
-          supabase
-            .from("competency_questions_stage")
-            .select("id", { count: "exact", head: true }),
-          supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true })
-            .eq("role", "committee"),
-        ]);
+        // ── 4. Pending proposals + member count ───────────────────────────
+        const [{ count: pendingComps }, { count: memberCount }] =
+          await Promise.all([
+            supabase
+              .from("competencies_stage")
+              .select("id", { count: "exact", head: true }),
+            supabase
+              .from("profiles")
+              .select("id", { count: "exact", head: true })
+              .eq("role", "committee"),
+          ]);
 
         // ── 5. Recent proposals (last 5) ──────────────────────────────────
         const { data: proposals, error: pErr } = await supabase
@@ -159,7 +152,6 @@ export default function CommitteeDashboard() {
             coveredCompetencies: coveredCount,
             emptyCompetencies: totalCompetencies - withQuestionsCount,
             pendingCompetencies: pendingComps ?? 0,
-            pendingQuestions: pendingQs ?? 0,
             totalMembers: memberCount ?? 0,
           });
 
@@ -215,10 +207,6 @@ export default function CommitteeDashboard() {
     stats && stats.totalCompetencies > 0
       ? Math.round((stats.coveredCompetencies / stats.totalCompetencies) * 100)
       : 0;
-
-  const pendingTotal = stats
-    ? stats.pendingCompetencies + stats.pendingQuestions
-    : 0;
 
   // Relative time helper — "2 hours ago", "3 days ago"
   function timeAgo(iso: string): string {
@@ -347,7 +335,7 @@ export default function CommitteeDashboard() {
               <ClipboardList size={19} style={{ color: "var(--warn)" }} />
             </div>
             <span className="text-3xl font-bold text-[var(--foreground)]">
-              {loading ? "—" : pendingTotal}
+              {loading ? "—" : (stats?.pendingCompetencies ?? 0)}
             </span>
           </div>
           <div>
@@ -357,31 +345,19 @@ export default function CommitteeDashboard() {
             <div className="text-xs text-[var(--muted)] mt-0.5 leading-snug">
               {loading
                 ? "Computing…"
-                : `${stats?.pendingCompetencies ?? 0} competencies · ${stats?.pendingQuestions ?? 0} questions`}
+                : `${stats?.pendingCompetencies ?? 0} competencies awaiting review`}
             </div>
           </div>
-          <div className="flex flex-col gap-1 mt-auto">
-            <Link
-              href="/committee/review-queue/competencies"
-              className="flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors group"
-            >
-              <span>Review competencies</span>
-              <ArrowRight
-                size={12}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </Link>
-            <Link
-              href="/committee/review-queue/questions"
-              className="flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors group"
-            >
-              <span>Review questions</span>
-              <ArrowRight
-                size={12}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </Link>
-          </div>
+          <Link
+            href="/committee/review-queue/competencies"
+            className="flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors group mt-auto"
+          >
+            <span>Review competencies</span>
+            <ArrowRight
+              size={12}
+              className="group-hover:translate-x-0.5 transition-transform"
+            />
+          </Link>
         </div>
 
         {/* ④ Without questions — spans 2 cols */}
@@ -570,13 +546,6 @@ export default function CommitteeDashboard() {
           >
             <Plus size={15} />
             Propose Competency
-          </Link>
-          <Link
-            href="/committee/competencies"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition-all hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
-          >
-            <Plus size={15} />
-            Propose Question
           </Link>
           <Link
             href="/committee/review-queue/competencies"

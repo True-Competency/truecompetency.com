@@ -9,7 +9,6 @@ import {
   Building2,
   Globe,
   BookOpen,
-  HelpCircle,
   Vote,
   MailPlus,
   Layers,
@@ -35,7 +34,6 @@ type Member = {
   avatar_path: string | null;
   committee_role: string | null;
   proposed_competencies: number;
-  proposed_questions: number;
   votes_cast: number;
 };
 
@@ -127,7 +125,7 @@ export default function CommitteeMembers() {
 
         const memberList = (profiles ?? []) as Omit<
           Member,
-          "proposed_competencies" | "proposed_questions" | "votes_cast"
+          "proposed_competencies" | "votes_cast"
         >[];
         const memberIds = memberList.map((m) => m.id);
 
@@ -136,27 +134,18 @@ export default function CommitteeMembers() {
           return;
         }
 
-        const [compStage, qStage, compVotes, qVotes] = await Promise.all([
+        const [compStage, compVotes] = await Promise.all([
           supabase
             .from("competencies_stage")
-            .select("suggested_by")
-            .in("suggested_by", memberIds),
-          supabase
-            .from("competency_questions_stage")
             .select("suggested_by")
             .in("suggested_by", memberIds),
           supabase
             .from("committee_votes")
             .select("voter_id")
             .in("voter_id", memberIds),
-          supabase
-            .from("committee_question_votes")
-            .select("voter_id")
-            .in("voter_id", memberIds),
         ]);
 
         const compCounts: Record<string, number> = {};
-        const qCounts: Record<string, number> = {};
         const voteCounts: Record<string, number> = {};
 
         (compStage.data ?? []).forEach(
@@ -164,15 +153,7 @@ export default function CommitteeMembers() {
             (compCounts[r.suggested_by] =
               (compCounts[r.suggested_by] ?? 0) + 1),
         );
-        (qStage.data ?? []).forEach(
-          (r: { suggested_by: string }) =>
-            (qCounts[r.suggested_by] = (qCounts[r.suggested_by] ?? 0) + 1),
-        );
         (compVotes.data ?? []).forEach(
-          (r: { voter_id: string }) =>
-            (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1),
-        );
-        (qVotes.data ?? []).forEach(
           (r: { voter_id: string }) =>
             (voteCounts[r.voter_id] = (voteCounts[r.voter_id] ?? 0) + 1),
         );
@@ -180,7 +161,6 @@ export default function CommitteeMembers() {
         const enriched: Member[] = memberList.map((m) => ({
           ...m,
           proposed_competencies: compCounts[m.id] ?? 0,
-          proposed_questions: qCounts[m.id] ?? 0,
           votes_cast: voteCounts[m.id] ?? 0,
         }));
 
@@ -731,16 +711,11 @@ function MemberCard({
         </div>
 
         <div className="border-t border-[var(--border)] mt-3 pt-3">
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 text-center">
             <StatPill
               icon={<BookOpen size={11} />}
               value={m.proposed_competencies}
               label="Competencies"
-            />
-            <StatPill
-              icon={<HelpCircle size={11} />}
-              value={m.proposed_questions}
-              label="Questions"
             />
             <StatPill
               icon={<Vote size={11} />}

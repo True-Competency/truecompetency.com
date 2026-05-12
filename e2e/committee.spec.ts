@@ -312,49 +312,6 @@ test.describe("Review queue — competencies", () => {
   });
 });
 
-// ── Review queue — Questions ────────────────────────────────────────────────────
-
-test.describe("Review queue — questions", () => {
-  test.beforeEach(async ({ page }) => {
-    await signInAsCommittee(page);
-    await page.goto("/committee/review-queue/questions");
-  });
-
-  test("loads questions review queue", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { name: /Review Queue — Questions/i }),
-    ).toBeVisible({ timeout: 8000 });
-  });
-
-  test("search works", async ({ page }) => {
-    const search = page.getByPlaceholder("Search question or competency…");
-    await search.fill("IVUS");
-    await page.waitForTimeout(300);
-    await expect(page).not.toHaveURL(/error/);
-  });
-
-  test("shows empty state or question cards", async ({ page }) => {
-    await page.waitForTimeout(3000); // allow data to load
-    const hasCards = (await page.locator(".rounded-2xl.border").count()) > 0;
-    const hasEmpty = await page
-      .getByText("No proposed questions pending review.")
-      .isVisible()
-      .catch(() => false);
-    expect(hasCards || hasEmpty).toBe(true);
-  });
-
-  test("vote buttons visible when questions exist", async ({ page }) => {
-    await page.waitForTimeout(3000);
-    const approveBtn = page.locator("button[title='Approve']").first();
-    const hasApprove = await approveBtn.isVisible().catch(() => false);
-    const hasEmpty = await page
-      .getByText("No proposed questions")
-      .isVisible()
-      .catch(() => false);
-    expect(hasApprove || hasEmpty).toBe(true);
-  });
-});
-
 // ── Members page ───────────────────────────────────────────────────────────────
 
 test.describe("Committee members page", () => {

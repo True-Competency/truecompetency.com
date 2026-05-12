@@ -13,7 +13,6 @@ import {
   ClipboardList,
   Users,
   Tags,
-  ChevronRight,
   Crown,
   Hospital,
   PanelLeftClose,
@@ -47,8 +46,6 @@ export default function CommitteeLayoutClient({
   const [collapsed, setCollapsed] = useState(false);
   const [pendingCompetencyProposals, setPendingCompetencyProposals] =
     useState<number>(0);
-  const [pendingQuestionProposals, setPendingQuestionProposals] =
-    useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -76,17 +73,11 @@ export default function CommitteeLayoutClient({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ count: cCount }, { count: qCount }] = await Promise.all([
-        supabase
-          .from("competencies_stage")
-          .select("id", { count: "exact", head: true }),
-        supabase
-          .from("competency_questions_stage")
-          .select("id", { count: "exact", head: true }),
-      ]);
+      const { count: cCount } = await supabase
+        .from("competencies_stage")
+        .select("id", { count: "exact", head: true });
       if (cancelled) return;
       setPendingCompetencyProposals(cCount ?? 0);
-      setPendingQuestionProposals(qCount ?? 0);
     })();
     return () => {
       cancelled = true;
@@ -181,12 +172,6 @@ export default function CommitteeLayoutClient({
   const navIdle =
     "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[var(--foreground)]";
 
-  const subLinkBase =
-    "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150";
-  const subActive =
-    "text-[var(--accent)] bg-[color:var(--accent)]/10 font-semibold";
-  const subIdle =
-    "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--field)]";
   const sidebarWidthClass = collapsed ? "w-16" : "w-60";
   const contentOffsetClass = collapsed ? "ml-16" : "ml-60";
 
@@ -279,79 +264,35 @@ export default function CommitteeLayoutClient({
             {!collapsed && <span>Competencies</span>}
           </Link>
 
-          {/* Review Queue + sub-items */}
-          <div>
-            <Link
-              href="/committee/review-queue/competencies"
-              title="Review Queue"
-              className={`relative ${navLinkBase} ${
-                collapsed
-                  ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
-                  : ""
-              } ${isReviewActive ? navActive : navIdle}`}
-            >
-              <ClipboardList size={16} />
-              {!collapsed && (
-                <>
-                  <span className="flex-1">Review Queue</span>
-                  <ChevronRight size={12} className="opacity-60" />
-                </>
-              )}
-              {collapsed &&
-                pendingCompetencyProposals + pendingQuestionProposals > 0 && (
-                  <span
-                    className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full text-[9px] font-bold text-white grid place-items-center"
-                    style={{ background: "var(--accent)" }}
-                  >
-                    {pendingCompetencyProposals + pendingQuestionProposals}
-                  </span>
-                )}
-            </Link>
-
-            {/* Always-visible sub-items */}
-            {!collapsed && (
-              <div className="ml-8 mt-1 space-y-0.5">
-                <Link
-                  href="/committee/review-queue/competencies"
-                  className={`relative ${subLinkBase} ${
-                    pathname.startsWith("/committee/review-queue/competencies")
-                      ? subActive
-                      : subIdle
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
-                  Competencies
-                  {pendingCompetencyProposals > 0 && (
-                    <span
-                      className="ml-auto min-w-[1.1rem] h-[18px] px-1.5 rounded-full text-[10px] font-bold text-white grid place-items-center"
-                      style={{ background: "var(--accent)" }}
-                    >
-                      {pendingCompetencyProposals}
-                    </span>
-                  )}
-                </Link>
-                <Link
-                  href="/committee/review-queue/questions"
-                  className={`relative ${subLinkBase} ${
-                    pathname.startsWith("/committee/review-queue/questions")
-                      ? subActive
-                      : subIdle
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0" />
-                  Questions
-                  {pendingQuestionProposals > 0 && (
-                    <span
-                      className="ml-auto min-w-[1.1rem] h-[18px] px-1.5 rounded-full text-[10px] font-bold text-white grid place-items-center"
-                      style={{ background: "var(--accent)" }}
-                    >
-                      {pendingQuestionProposals}
-                    </span>
-                  )}
-                </Link>
-              </div>
+          {/* Review Queue */}
+          <Link
+            href="/committee/review-queue/competencies"
+            title="Review Queue"
+            className={`relative ${navLinkBase} ${
+              collapsed
+                ? "h-10 w-10 mx-auto justify-center px-0 rounded-xl"
+                : ""
+            } ${isReviewActive ? navActive : navIdle}`}
+          >
+            <ClipboardList size={16} />
+            {!collapsed && <span className="flex-1">Review Queue</span>}
+            {!collapsed && pendingCompetencyProposals > 0 && (
+              <span
+                className="ml-auto min-w-[1.1rem] h-[18px] px-1.5 rounded-full text-[10px] font-bold text-white grid place-items-center"
+                style={{ background: "var(--accent)" }}
+              >
+                {pendingCompetencyProposals}
+              </span>
             )}
-          </div>
+            {collapsed && pendingCompetencyProposals > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full text-[9px] font-bold text-white grid place-items-center"
+                style={{ background: "var(--accent)" }}
+              >
+                {pendingCompetencyProposals}
+              </span>
+            )}
+          </Link>
 
           {/* Members */}
           <Link
