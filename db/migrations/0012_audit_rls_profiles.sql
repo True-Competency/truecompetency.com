@@ -1,16 +1,26 @@
 -- Migration: 0012_audit_rls_profiles
 -- Date: 2026-05-12
 -- Purpose: Clean up RLS on public.profiles. Removes duplicate policies
---          that have built up over time, removes a broad "qual = true"
+--          that had built up over time, removes a broad "qual = true"
 --          policy that leaked PII across all authenticated users, and
---          replaces it with a public-fields view plus targeted
---          per-relationship read policies. Also normalizes policy names
---          to a consistent prof_* prefix.
+--          replaces it with a profiles_public view exposing only safe
+--          columns for leaderboard display. Also normalizes the
+--          instructor-reads-trainees policy name to the prof_* prefix
+--          used by the rest of the policies on this table.
 -- Author: @novruzoff
 --
 -- Frontend changes required AFTER this migration:
---   - src/app/trainee/page.tsx leaderboard query must read from
---     profiles_public instead of profiles. Tracked in a separate commit.
+--   - src/app/trainee/page.tsx leaderboard query reads from
+--     profiles_public instead of profiles.
+--
+-- Note: an earlier draft of this migration also added two new policies
+-- (prof_select_committee_peers and prof_select_assigned_instructor) for
+-- future committee-collaboration and trainee-to-instructor contact
+-- features. Both caused infinite recursion at runtime and were dropped
+-- before this migration was finalized. They are not included here. When
+-- those features are actually built, the correct implementation will use
+-- SECURITY DEFINER helper functions (following the existing
+-- auth_is_instructor pattern) to avoid the recursion.
 
 -- Drop duplicate INSERT policy.
 -- prof_insert_own and profiles_insert_own had identical effect.
@@ -46,48 +56,10 @@ CREATE POLICY prof_select_instructor_reads_trainees
     AND public.auth_is_instructor(auth.uid())
   );
 
--- New: committee members can read other committee members' profiles.
--- Supports collaboration features such as future mailto buttons and
--- proposal discussion threads. Restricted to committee role only -
--- trainees and instructors cannot use this policy to read committee data.
-CREATE POLICY prof_select_committee_peers
-  ON public.profiles
-  FOR SELECT
-  TO authenticated
-  USING (
-    role = 'committee'::user_role
-    AND EXISTS (
-      SELECT 1
-      FROM public.profiles caller
-      WHERE caller.id = auth.uid()
-        AND caller.role = 'committee'::user_role
-    )
-  );
-
--- New: trainees can read profiles of instructors who assigned them
--- competencies. Supports future "contact your instructor" features.
--- The relationship is derived from competency_assignments.assigned_by.
--- Trainees with no instructor-assigned competencies see no instructor
--- profiles via this policy.
-CREATE POLICY prof_select_assigned_instructor
-  ON public.profiles
-  FOR SELECT
-  TO authenticated
-  USING (
-    role = 'instructor'::user_role
-    AND EXISTS (
-      SELECT 1
-      FROM public.competency_assignments ca
-      WHERE ca.student_id = auth.uid()
-        AND ca.assigned_by = public.profiles.id
-    )
-  );
-
--- New: profiles_public view. Exposes only the columns needed for
--- displaying users in lists where contact info is not appropriate
--- (leaderboards, public-facing aggregates). Reads from this view do not
--- expose email, university, hospital, committee_role, or any other
--- sensitive field.
+-- profiles_public view. Exposes only the columns needed for displaying
+-- users in lists where contact info is not appropriate (leaderboards,
+-- public-facing aggregates). Reads from this view do not expose email,
+-- university, hospital, committee_role, or any other sensitive field.
 CREATE OR REPLACE VIEW public.profiles_public AS
 SELECT
   id,
@@ -99,12 +71,10 @@ SELECT
   role
 FROM public.profiles;
 
--- Grant SELECT on the view to authenticated users. The view inherits RLS
--- from the underlying table by default in PostgreSQL, which would defeat
--- the purpose - so we set it to security_invoker = false so the view
--- runs with the privileges of the view owner (postgres) and bypasses
--- profiles RLS. The view itself exposes only safe columns, so this is
--- the intended behavior.
+-- The view runs with the privileges of the view owner (postgres) so it
+-- bypasses RLS on the underlying profiles table. Access control is
+-- enforced by the column list above, not by RLS. Do not widen this
+-- column list without redesigning the access pattern.
 ALTER VIEW public.profiles_public SET (security_invoker = false);
 
 GRANT SELECT ON public.profiles_public TO authenticated;
