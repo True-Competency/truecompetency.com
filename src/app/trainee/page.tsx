@@ -70,7 +70,7 @@ type LeaderboardProgressRow = {
   student_id: string | null;
   competency_id: string | null;
   pct: number;
-  profiles: {
+  profiles_public: {
     full_name: string | null;
     first_name: string | null;
     last_name: string | null;
@@ -232,10 +232,10 @@ export default function TraineeDashboard() {
           supabase
             .from("student_competency_progress")
             .select(
-              "student_id, competency_id, pct, profiles!inner(full_name, first_name, last_name, country_name, country_code, role)",
+              "student_id, competency_id, pct, profiles_public!inner(full_name, first_name, last_name, country_name, country_code, role)",
             )
             .gte("pct", 100)
-            .eq("profiles.role", "trainee")
+            .eq("profiles_public.role", "trainee")
             .returns<LeaderboardProgressRow[]>(),
 
           // All completed rows across all trainees — for rank calculation
@@ -317,7 +317,7 @@ export default function TraineeDashboard() {
         >();
 
         (leaderboardRows ?? []).forEach((row) => {
-          const p = row.profiles;
+          const p = row.profiles_public;
           if (!p) return;
 
           const rawCountry = (p.country_name ?? "").trim();
