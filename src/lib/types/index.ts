@@ -1,4 +1,4 @@
-export type { UserRole, CommitteeRole } from "./roles";
+export type { UserRole, CommitteeRole, SignupRole } from "./roles";
 export type {
   TagRow,
   AssignmentRow,

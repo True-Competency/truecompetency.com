@@ -7,10 +7,9 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { ensureProfile } from "@/lib/ensureProfile";
 import CountrySelect from "@/components/CountrySelect";
+import type { SignupRole } from "@/lib/types";
 
-type Role = "trainee" | "instructor" | "committee";
-
-const ROLE_INFO: Record<Role, { title: string; points: string[] }> = {
+const ROLE_INFO: Record<SignupRole, { title: string; points: string[] }> = {
   trainee: {
     title: "Trainee",
     points: [
@@ -42,7 +41,7 @@ function RoleChip({
   active,
   onClick,
 }: {
-  label: Role;
+  label: SignupRole;
   active: boolean;
   onClick: () => void;
 }) {
@@ -172,7 +171,7 @@ function PasswordField({
   );
 }
 
-function SignUpRightPanel({ role }: { role: Role }) {
+function SignUpRightPanel({ role }: { role: SignupRole }) {
   const roleInfo = ROLE_INFO[role];
 
   return (
@@ -233,7 +232,7 @@ export default function SignUpPage() {
   const router = useRouter();
 
   const [redirect, setRedirect] = useState<string>("/");
-  const [role, setRole] = useState<Role>("trainee");
+  const [role, setRole] = useState<SignupRole>("trainee");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
