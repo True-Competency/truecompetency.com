@@ -4,8 +4,8 @@ This document is the single source of truth for the production database that pow
 
 This guide is written for developers who are comfortable with code but may not have formal training in databases. Concepts are explained from first principles where it helps, with references to deeper material for anyone who wants to go further.
 
-**Last updated:** 2026-05-13
-**Current migration:** `0028_drop_duplicate_indexes`
+**Last updated:** 2026-05-15
+**Current migration:** `0029_committee_question_editing`
 **Database:** Supabase (PostgreSQL 17)
 
 ---
@@ -158,7 +158,7 @@ Admin grants are managed by directly inserting into `app_admins` via SQL — the
 
 ## Database architecture overview
 
-True Competency's database is built around five conceptual groups of tables.
+True Competency's database is built around six conceptual groups of tables.
 
 ### 1. People
 
@@ -200,7 +200,11 @@ How clinical content gets approved.
 
 (Note: the staging table for questions was removed in migration `0011`. Question voting is gone — committee members now write to live questions directly.)
 
-### 5. Plumbing
+### 5. Auditing
+
+- **`audit_log`** — Append-only history of every change made through the committee question-editing RPCs.
+
+### 6. Plumbing
 
 - **`profiles_public`** *(view)* — A safe subset of `profiles` for leaderboards.
 
@@ -427,15 +431,24 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 | `competency_id` | uuid | NO | — | The competency. |
 | `body` | text | NO | — | The question text. |
 | `created_at` | timestamptz | NO | `now()` | — |
+| `updated_at` | timestamptz | NO | `now()` | Stamped by every successful committee edit RPC. |
+| `updated_by` | uuid | YES | — | The committee member or admin who made the last edit. |
+| `deleted_at` | timestamptz | YES | — | Soft-delete marker. NULL means the row is live. |
+| `deleted_by` | uuid | YES | — | Who soft-deleted the row. |
+| `version` | integer | NO | `1` | Optimistic-lock counter. Incremented on every successful write. |
 
 **Foreign keys:**
 
 | Column | References | On delete |
 |---|---|---|
 | `competency_id` | `competencies(id)` | CASCADE |
+| `updated_by` | `profiles(id)` | SET NULL |
+| `deleted_by` | `profiles(id)` | SET NULL |
 
 **Notes:**
-- No `created_by`, `updated_at`, etc. The upcoming question-editing migration adds these.
+- `version` is used for optimistic locking: the committee edit RPCs require the client to send the version it last read, and reject the write with a P0001 error if the row has changed in the meantime.
+- `deleted_at IS NULL` means the row is live. Soft-deleted questions are hidden from trainees by RLS but remain visible to committee, instructor, and admin.
+- Edits and deletes happen through the `committee_*` RPCs (added in migration `0029`); each write also inserts a row into `audit_log` in the same transaction.
 - Questions are written directly by committee members (no staging, no voting since migration `0011`).
 
 ---
@@ -454,16 +467,26 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 | `is_correct` | boolean | NO | `false` | Exactly one per question must be true. |
 | `sort_order` | integer | NO | — | Display order, 0-indexed. |
 | `created_at` | timestamptz | NO | `now()` | — |
+| `updated_at` | timestamptz | NO | `now()` | Stamped by every successful committee edit RPC. |
+| `updated_by` | uuid | YES | — | The committee member or admin who made the last edit. |
+| `deleted_at` | timestamptz | YES | — | Soft-delete marker. NULL means the row is live. |
+| `deleted_by` | uuid | YES | — | Who soft-deleted the row. |
+| `version` | integer | NO | `1` | Optimistic-lock counter. Incremented on every successful write. |
 
 **Foreign keys:**
 
 | Column | References | On delete |
 |---|---|---|
 | `question_id` | `competency_questions(id)` | CASCADE |
+| `updated_by` | `profiles(id)` | SET NULL |
+| `deleted_by` | `profiles(id)` | SET NULL |
 
 **Unique constraints:**
-- `(question_id, sort_order)` — no two options for the same question share a sort order.
-- Partial unique index on `(question_id) WHERE is_correct` — enforces "at most one correct option per question."
+- `question_options_question_id_sort_order_active_idx` — partial unique index on `(question_id, sort_order) WHERE deleted_at IS NULL`. No two **live** options for the same question share a sort order. The old full-table unique constraint was dropped in migration `0029` so that a sort_order slot can be re-used after a soft delete.
+- `question_options_one_correct_active_idx` — partial unique index on `(question_id) WHERE is_correct = true AND deleted_at IS NULL`. Enforces "at most one correct option per question" among live options only, so the correct flag can be re-used after a soft delete.
+
+**Notes:**
+- The one-correct-per-question invariant is enforced by the partial unique index above. Changes to `is_correct` go through `committee_set_correct_option`, which demotes the old correct option and promotes the new one atomically inside a single transaction (locking the question row) to preserve the invariant.
 
 ---
 
@@ -655,6 +678,41 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 
 ---
 
+### `audit_log`
+
+**Purpose:** Append-only record of every change made through the `committee_*` question-editing RPCs. The table is self-contained: `old_values` and `new_values` are full JSONB row snapshots, so an auditor can reconstruct any past state of any audited row even if the row no longer exists.
+
+**Columns:**
+
+| Column | Type | Nullable | Default | Meaning |
+|---|---|---|---|---|
+| `id` | uuid | NO | `gen_random_uuid()` | Primary key. |
+| `table_name` | text | NO | — | Name of the audited table (e.g. `competency_questions`, `question_options`). |
+| `row_id` | uuid | NO | — | Primary key of the row that was changed. |
+| `action` | text | NO | — | One of `insert`, `update`, `soft_delete`. |
+| `actor_id` | uuid | YES | — | The user who performed the change. |
+| `old_values` | jsonb | YES | — | Full pre-change row snapshot. NULL for inserts. |
+| `new_values` | jsonb | YES | — | Full post-change row snapshot. |
+| `created_at` | timestamptz | NO | `now()` | When the change happened. |
+
+**Foreign keys:**
+
+| Column | References | On delete |
+|---|---|---|
+| `actor_id` | `profiles(id)` | SET NULL |
+
+**Check constraints:**
+- `action` must be one of `insert`, `update`, `soft_delete`.
+
+**Indexes:**
+- `audit_log_row_idx` on `(table_name, row_id, created_at DESC)` — "history of this row" lookups.
+- `audit_log_actor_idx` on `(actor_id, created_at DESC)` — "activity by this actor" lookups.
+
+**Notes:**
+- RLS is enabled. The only policy is `al_admin_read`, granting SELECT to admins. There are intentionally no INSERT/UPDATE/DELETE policies: all writes happen through `SECURITY DEFINER` RPCs that bypass RLS, and the RPCs only insert — they never update or delete audit rows. The table is append-only at the RPC layer too.
+
+---
+
 ## Views
 
 ### `profiles_public`
@@ -678,10 +736,11 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 **What it computes:**
 
 For each (student, competency) where the student is assigned:
-1. Counts total questions in the competency and distinct correct answers.
-2. Computes `pct_answers = round(100 * correct / total)`.
-3. Checks for an override in `student_competency_overrides`.
-4. Returns the override `pct` if it exists, else `pct_answers`.
+1. **Total questions** (denominator): count of **live** questions in the competency — `competency_questions` rows with `deleted_at IS NULL`. Soft-deleted questions are excluded.
+2. **Correct numerator**: count of distinct correct answers across **all** of that competency's questions, including soft-deleted ones. This preserves a trainee's credit when a question is later removed from the curriculum — what Marc calls "course-syllabus semantics" (B2).
+3. **Percentage**: `pct_answers = LEAST(100, round(100 * correct / total))`. The cap at 100 matters because a trainee whose correct-answer count exceeds the new live-question count after a deletion would otherwise show > 100%.
+4. **Answered questions** (the displayed "X of Y answered" count): counts only answers on **live** questions, so the UI math stays coherent after a question is deleted.
+5. **Override**: if a row exists in `student_competency_overrides` for that (student, competency), its `pct` wins over the computed value.
 
 **Columns returned:** `student_id`, `competency_id`, `total_questions`, `answered_questions`, `pct`.
 
@@ -689,6 +748,7 @@ For each (student, competency) where the student is assigned:
 - "Answered correctly" is counted as distinct question IDs where `is_correct = true`. Re-answering doesn't double-count.
 - Zero-question competencies have `pct_answers = 0` (no divide-by-zero).
 - The view inherits RLS from its underlying tables.
+- Soft-deleting a question makes a trainee's percentage go **up**, not down: the denominator shrinks while the numerator is preserved. Trainees never see their progress drop because of a curriculum change. This is course-syllabus semantics per Marc's guidance.
 
 ---
 
@@ -744,6 +804,28 @@ Takes competency IDs in display order. Updates `position` on each.
 
 **`chair_reassign_competency_subgoals(p_ids uuid[], p_subgoal_ids uuid[]) → void`**
 Bulk-updates `subgoal_id` of multiple competencies. Validates input thoroughly.
+
+### Committee question-editing RPCs
+
+These RPCs are how committee members edit live questions and options. Direct table writes are blocked by RLS; all changes flow through these functions, which enforce role checks, version-based optimistic locking, and audit logging. All are `SECURITY DEFINER` and require the caller to be either a committee member (`auth_is_committee`) or an admin (`is_app_admin`). Every successful write inserts one row into `audit_log` in the same transaction.
+
+**`committee_update_question(p_id uuid, p_body text, p_expected_version integer) → integer`**
+Updates a question's body. Validates non-empty body, checks the question exists and is not soft-deleted, and rejects with `P0001` if `p_expected_version` doesn't match the current `version`. Bumps `version`, stamps `updated_at`/`updated_by`, and writes an `update` audit entry. Returns the new version.
+
+**`committee_update_option(p_id uuid, p_body text, p_sort_order integer, p_expected_version integer) → integer`**
+Updates an option's body and sort_order only — `is_correct` is changed via `committee_set_correct_option` to preserve the one-correct-per-question invariant atomically. Same validation and optimistic-locking pattern as `committee_update_question`. Returns the new version.
+
+**`committee_set_correct_option(p_question_id uuid, p_new_correct_option_id uuid) → void`**
+Atomically demotes the current correct option (if any) and promotes the specified one. Locks the parent question row with `FOR UPDATE` to serialize concurrent attempts on the same question. Verifies the candidate option belongs to the question and is live. Both options get version-bumped and each gets its own `update` audit entry. No-op if the candidate is already the correct option.
+
+**`committee_add_option(p_question_id uuid, p_body text, p_sort_order integer) → uuid`**
+Inserts a new option, always with `is_correct = false` — use `committee_set_correct_option` afterward to change correctness. Validates non-empty body, non-negative sort_order, and that the parent question exists and is not soft-deleted. Writes an `insert` audit entry. Returns the new option's id.
+
+**`committee_delete_option(p_id uuid, p_expected_version integer) → void`**
+Soft-deletes an option. **Rejects deletion of the currently-correct option** to protect the one-correct-per-question invariant — to delete the correct option, first call `committee_set_correct_option` to move correctness elsewhere. Sets `deleted_at`/`deleted_by`, bumps `version`, and writes a `soft_delete` audit entry.
+
+**`committee_delete_question(p_id uuid, p_expected_version integer) → void`**
+Soft-deletes the question and **cascades the soft-delete to every live option** of that question. Each cascaded option gets its own `soft_delete` audit entry, so the history is fully reconstructable per row. Standard optimistic-locking and not-already-deleted checks on the question.
 
 ### Instructor and user RPCs
 
@@ -887,20 +969,21 @@ No INSERT/UPDATE/DELETE policies for non-admins — writes go through chair RPCs
 
 - **`cq_committee_read`** (SELECT) — Committee reads all questions.
 - **`cq_instructor_read_all`** (SELECT) — Instructors read all questions.
-- **`cq_trainee_read_enrolled`** (SELECT) — Trainees read questions only for enrolled competencies.
+- **`cq_trainee_read_enrolled`** (SELECT) — Trainees read questions only for enrolled competencies, and only when the question is live (`deleted_at IS NULL`). Soft-deleted questions are hidden from trainees.
 - **`cq_admin_all`** (ALL) — Admin modifies.
 
 ### `question_options`
 
 Same pattern as `competency_questions`:
-- **`qo_committee_read`**, **`qo_instructor_read_all`**, **`qo_trainee_read_enrolled`** (SELECT).
+- **`qo_committee_read`**, **`qo_instructor_read_all`** (SELECT).
+- **`qo_trainee_read_enrolled`** (SELECT) — Trainees read options only for enrolled competencies, and only when both the option and its parent question are live (`question_options.deleted_at IS NULL` AND the parent `competency_questions.deleted_at IS NULL`).
 - **`qo_admin_all`** (ALL).
 
 ### `question_media`
 
 - **`qm_committee_read`** (SELECT) — Committee reads all media.
 - **`qm_instructor_read_all`** (SELECT) — Instructors read all media.
-- **`qm_trainee_read_enrolled`** (SELECT) — Trainees read media only for enrolled competencies.
+- **`qm_trainee_read_enrolled`** (SELECT) — Trainees read media only for enrolled competencies, and only when the parent question is live (`competency_questions.deleted_at IS NULL`).
 - **`qm_committee_insert`** (INSERT) — Any committee member uploads. Requires `uploaded_by = auth.uid()`.
 - **`qm_committee_delete`** (DELETE) — Any committee member deletes any media.
 - **`qm_admin_all`** (ALL) — Admin modifies.
@@ -930,6 +1013,12 @@ No UPDATE policy — replacement is delete + new insert.
 - **`sco_admin_all`** (ALL).
 
 No INSERT/UPDATE/DELETE policies for non-admins. Writes go through `instructor_mark_competency_complete` RPC.
+
+### `audit_log`
+
+- **`al_admin_read`** (SELECT) — Admins read all audit entries.
+
+No other policies. All writes go through `SECURITY DEFINER` committee RPCs, which bypass RLS and only ever insert — so the table is append-only at both the RLS and RPC layers.
 
 ---
 
@@ -982,8 +1071,8 @@ Supabase linter `0010_security_definer_view`. Intentional design; warning acknow
 
 ### Future feature work
 
-**13. Question editing for committee members.**
-Needs added columns on `competency_questions`, an `audit_log` table, soft-delete semantics, new RPCs. Course-syllabus semantics per Marc's guidance.
+**13. Frontend UI for committee question editing.**
+RPCs and audit log exist (migration `0029`); the frontend edit/delete UI is still to be built.
 
 **14. Competency lifecycle redesign.**
 Replaces auto-merge-on-vote with chair-decided approval. Stage rows kept forever for audit. New columns and tables. Multi-proposal threads.
