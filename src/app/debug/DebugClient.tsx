@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { AssignmentRow } from "@/lib/types";
+import type { AssignmentRow, Profile } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type DiagRow = {
@@ -13,11 +13,7 @@ type DiagRow = {
   extra?: unknown;
 };
 
-type Profile = {
-  id: string;
-  email: string | null;
-  role: "trainee" | "instructor" | "committee";
-};
+type MeProfile = Pick<Profile, "id" | "email" | "role">;
 
 type ProgressSample = {
   student_id: string;
@@ -154,14 +150,14 @@ export default function DebugClient() {
 
       // Profile (me) & RLS negative (not me)
       if (user?.id) {
-        const { out: meOut, dt: meDt } = await timeit<SupaSingle<Profile>>(
+        const { out: meOut, dt: meDt } = await timeit<SupaSingle<MeProfile>>(
           "profiles (current user)",
           async () =>
             await supabase
               .from("profiles")
               .select("id, email, role")
               .eq("id", user.id)
-              .maybeSingle<Profile>(),
+              .maybeSingle<MeProfile>(),
           add
         );
 

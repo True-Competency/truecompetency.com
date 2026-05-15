@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { TagRow } from "@/lib/types";
+import type { TagRow, Profile } from "@/lib/types";
 import { Search, X, Check, Inbox, ChevronDown } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -33,9 +33,6 @@ type SubgoalRow = {
 
 type DomainRow = { id: string; code: string; name: string };
 
-type Profile = {
-  id: string;
-};
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -51,7 +48,7 @@ function diffColor(d: string): string {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function ReviewQueueCompetencies() {
-  const [me, setMe] = useState<Profile | null>(null);
+  const [me, setMe] = useState<Pick<Profile, "id"> | null>(null);
   const [suggested, setSuggested] = useState<SuggestedCompetency[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, boolean>>({});
   const [voteCounts, setVoteCounts] = useState<

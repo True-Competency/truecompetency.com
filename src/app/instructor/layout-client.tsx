@@ -5,15 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { LayoutDashboard, Users, UserCircle2 } from "lucide-react";
-
-type Profile = {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_path: string | null;
-};
+import type { LayoutProfile } from "@/lib/types";
 
 export default function InstructorLayoutClient({
   children,
@@ -22,7 +14,7 @@ export default function InstructorLayoutClient({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<LayoutProfile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -37,7 +29,7 @@ export default function InstructorLayoutClient({
         .select("id, email, full_name, first_name, last_name, avatar_path")
         .eq("id", u.user.id)
         .maybeSingle();
-      if (data && !cancelled) setProfile(data as Profile);
+      if (data && !cancelled) setProfile(data as LayoutProfile);
     })();
     return () => {
       cancelled = true;
@@ -75,7 +67,7 @@ export default function InstructorLayoutClient({
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  function displayName(p: Profile | null) {
+  function displayName(p: LayoutProfile | null) {
     if (!p) return "Instructor";
     return (
       p.full_name ||
@@ -84,14 +76,14 @@ export default function InstructorLayoutClient({
     );
   }
 
-  function getInitials(p: Profile | null) {
+  function getInitials(p: LayoutProfile | null) {
     if (!p) return "I";
     const fn = p.first_name?.[0] ?? "";
     const ln = p.last_name?.[0] ?? "";
     return (fn + ln || p.full_name?.[0] || p.email?.[0] || "I").toUpperCase();
   }
 
-  function getAvatarUrl(p: Profile | null) {
+  function getAvatarUrl(p: LayoutProfile | null) {
     if (!p?.avatar_path) return "";
     return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
       .data.publicUrl;

@@ -21,18 +21,20 @@ import {
   Settings,
 } from "lucide-react";
 import SidebarSupportModal from "@/components/SidebarSupportModal";
+import type { Profile } from "@/lib/types";
 
-type Profile = {
-  id: string;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  committee_role: string | null;
-  hospital: string | null;
-  country_name: string | null;
-  country_code: string | null;
-  avatar_path: string | null;
-};
+type SidebarProfile = Pick<
+  Profile,
+  | "id"
+  | "full_name"
+  | "first_name"
+  | "last_name"
+  | "committee_role"
+  | "hospital"
+  | "country_name"
+  | "country_code"
+  | "avatar_path"
+>;
 
 export default function CommitteeLayoutClient({
   children,
@@ -41,7 +43,7 @@ export default function CommitteeLayoutClient({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [pendingCompetencyProposals, setPendingCompetencyProposals] =
@@ -61,7 +63,7 @@ export default function CommitteeLayoutClient({
         )
         .eq("id", u.user.id)
         .maybeSingle();
-      if (data && !cancelled) setProfile(data as Profile);
+      if (data && !cancelled) setProfile(data as SidebarProfile);
     })();
     return () => {
       cancelled = true;
@@ -131,14 +133,14 @@ export default function CommitteeLayoutClient({
 
   const isReviewActive = pathname.startsWith("/committee/review-queue");
 
-  function getInitials(p: Profile | null) {
+  function getInitials(p: SidebarProfile | null) {
     if (!p) return "?";
     const fn = p.first_name?.[0] ?? "";
     const ln = p.last_name?.[0] ?? "";
     return (fn + ln || p.full_name?.[0] || "?").toUpperCase();
   }
 
-  function getDisplayName(p: Profile | null) {
+  function getDisplayName(p: SidebarProfile | null) {
     if (!p) return "Loading...";
     return (
       p.full_name ||
@@ -147,7 +149,7 @@ export default function CommitteeLayoutClient({
     );
   }
 
-  function getAvatarUrl(p: Profile | null) {
+  function getAvatarUrl(p: SidebarProfile | null) {
     if (!p?.avatar_path) return "";
     return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
       .data.publicUrl;

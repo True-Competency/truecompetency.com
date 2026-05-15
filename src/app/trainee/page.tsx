@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { TagRow, TraineeAssignmentRef } from "@/lib/types";
+import type { TagRow, TraineeAssignmentRef, Profile } from "@/lib/types";
 import ReactCountryFlag from "react-country-flag";
 import {
   AreaChart,
@@ -28,14 +28,10 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Profile = {
-  id: string;
-  role: string;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  email: string | null;
-};
+type MeProfile = Pick<
+  Profile,
+  "id" | "role" | "first_name" | "last_name" | "full_name" | "email"
+>;
 
 type ProgressRow = {
   competency_id: string;
@@ -106,7 +102,7 @@ export default function TraineeDashboard() {
   const router = useRouter();
 
   // Auth + profile
-  const [me, setMe] = useState<Profile | null>(null);
+  const [me, setMe] = useState<MeProfile | null>(null);
 
   // Core data
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
@@ -158,7 +154,7 @@ export default function TraineeDashboard() {
           .from("profiles")
           .select("id, role, first_name, last_name, full_name, email")
           .eq("id", uid)
-          .maybeSingle<Profile>();
+          .maybeSingle<MeProfile>();
         if (profErr) throw profErr;
         if (!prof) {
           // No profile row visible to this session — almost always means the auth
@@ -474,7 +470,7 @@ export default function TraineeDashboard() {
 
   // ── Display helpers ───────────────────────────────────────────────────────────
 
-  function getDisplayName(p: Profile | null) {
+  function getDisplayName(p: MeProfile | null) {
     if (!p) return "";
     return (
       p.full_name ||
