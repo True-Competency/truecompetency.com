@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow, AssignmentRow } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type TraineeProfile = {
@@ -24,16 +25,6 @@ type Competency = {
 
 type CompetencyRaw = Omit<Competency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
-};
-
-type AssignmentRow = {
-  student_id: string;
-  competency_id: string;
 };
 
 type ProgressRow = {

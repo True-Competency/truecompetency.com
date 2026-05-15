@@ -1,6 +1,6 @@
 // src/lib/roles.ts
-export type UserRole = 'trainee' | 'instructor' | 'committee' | 'admin';
-export type CommitteeRole = 'editor' | 'chief_editor';
+import type { UserRole, CommitteeRole } from '@/lib/types';
+export type { UserRole, CommitteeRole };
 
 export const ROLE_LABEL: Record<UserRole, string> = {
   trainee: 'IVUS Trainee',

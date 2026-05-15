@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import type { UserRole } from "@/lib/types";
 
-type UserRole = "trainee" | "instructor" | "committee" | "admin";
 type Profile = { id: string; role: UserRole };
 const ROLE_HOME: Record<UserRole, string> = {
   trainee: "/trainee",

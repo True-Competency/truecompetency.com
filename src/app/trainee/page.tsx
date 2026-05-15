@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow, TraineeAssignmentRef } from "@/lib/types";
 import ReactCountryFlag from "react-country-flag";
 import {
   AreaChart,
@@ -41,19 +42,10 @@ type ProgressRow = {
   pct: number;
 };
 
-type AssignmentRow = {
-  competency_id: string;
-};
-
 type CompetencyRow = {
   id: string;
   difficulty: string | null;
   tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
 };
 
 type AnswerRow = {
@@ -195,7 +187,7 @@ export default function TraineeDashboard() {
             .from("competency_assignments")
             .select("competency_id")
             .eq("student_id", uid)
-            .returns<AssignmentRow[]>(),
+            .returns<TraineeAssignmentRef[]>(),
 
           // My progress per competency
           supabase

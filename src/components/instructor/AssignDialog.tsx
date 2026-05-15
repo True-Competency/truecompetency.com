@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow } from "@/lib/types";
 
 type Competency = {
   id: string;
@@ -13,11 +14,6 @@ type Competency = {
 
 type CompetencyRaw = Omit<Competency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
 };
 
 type Props = {

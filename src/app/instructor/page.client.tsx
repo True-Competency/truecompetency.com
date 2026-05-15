@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "next-themes";
+import type { TagRow, AssignmentRow } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type TraineeProfile = {
@@ -28,7 +29,6 @@ type MeProfile = {
 };
 
 type ProgressRow = { student_id: string; pct: number };
-type AssignRow = { student_id: string; competency_id: string };
 
 type StudentRow = {
   id: string;
@@ -51,11 +51,6 @@ type Competency = {
 
 type CompetencyRaw = Omit<Competency, "tags"> & {
   tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
 };
 
 /* ---------------- Page ---------------- */
@@ -247,7 +242,7 @@ export default function InstructorClient() {
             .from("competency_assignments")
             .select("student_id, competency_id")
             .in("student_id", traineeIds)
-            .returns<AssignRow[]>();
+            .returns<AssignmentRow[]>();
           if (aErr) throw aErr;
 
           (assigns ?? []).forEach((r) => {

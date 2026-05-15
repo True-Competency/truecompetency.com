@@ -4,9 +4,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// Mirrors the profiles.role enum in the database.
-export type UserRole = "trainee" | "instructor" | "committee" | "admin";
+import type { UserRole } from "@/lib/types";
 
 /**
  * Attach the current authenticated user to Sentry's scope.

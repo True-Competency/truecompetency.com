@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow } from "@/lib/types";
 import {
   ArrowRight,
   ChevronDown,
@@ -65,11 +66,6 @@ type QuestionMediaItem = {
   file_size: number | null;
   storage_path: string;
   signed_url: string | null;
-};
-
-type TagRow = {
-  id: string;
-  name: string;
 };
 
 type CompetencyRaw = Omit<Competency, "tags"> & {

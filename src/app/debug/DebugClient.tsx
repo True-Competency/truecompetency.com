@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { AssignmentRow } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type DiagRow = {
@@ -25,8 +26,6 @@ type ProgressSample = {
   answered_questions?: number | null;
   pct?: number | null;
 };
-
-type AssignmentRow = { student_id: string; competency_id: string };
 
 type CompetencyRow = {
   id: string;

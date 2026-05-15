@@ -4,6 +4,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type {
+  CompetencyRow,
+  TagRow,
+  ProgressRow,
+  DiffFilter,
+} from "@/lib/types";
 import Link from "next/link";
 import {
   Search,
@@ -17,27 +23,6 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type CompetencyRow = {
-  id: string;
-  name: string;
-  difficulty: string | null;
-  tags: string[] | null; // UUID[]
-  position: number | null;
-};
-
-type TagRow = {
-  id: string;
-  name: string;
-};
-
-type ProgressRow = {
-  competency_id: string;
-  pct: number;
-  total_questions: number;
-  answered_questions: number;
-};
-
-type DiffFilter = "all" | "beginner" | "intermediate" | "expert";
 type StatusFilter = "all" | "in_progress" | "completed";
 
 // Resolved competency with progress attached

@@ -5,8 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Stethoscope, GraduationCap } from "lucide-react";
+import type { UserRole } from "@/lib/types";
 
-type UserRole = "trainee" | "instructor" | "committee" | "admin";
 type Profile = { id: string; role: UserRole };
 type LandingStats = {
   competencies: number;

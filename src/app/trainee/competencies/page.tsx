@@ -4,6 +4,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type {
+  CompetencyRow,
+  TagRow,
+  TraineeAssignmentRef,
+  ProgressRow,
+  DiffFilter,
+} from "@/lib/types";
 import {
   Search,
   X,
@@ -16,31 +23,6 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type CompetencyRow = {
-  id: string;
-  name: string;
-  difficulty: string | null;
-  tags: string[] | null; // UUID[] from DB
-  position: number | null;
-};
-
-type TagRow = {
-  id: string;
-  name: string;
-};
-
-type AssignmentRow = {
-  competency_id: string;
-};
-
-type ProgressRow = {
-  competency_id: string;
-  pct: number;
-  total_questions: number;
-  answered_questions: number;
-};
-
-type DiffFilter = "all" | "beginner" | "intermediate" | "expert";
 type StatusFilter = "all" | "available" | "enrolled" | "completed";
 
 // Resolved competency with tag names instead of UUIDs
@@ -145,7 +127,7 @@ export default function TraineeCompetenciesPage() {
             .from("competency_assignments")
             .select("competency_id")
             .eq("student_id", id)
-            .returns<AssignmentRow[]>(),
+            .returns<TraineeAssignmentRef[]>(),
 
           // My progress per competency
           supabase

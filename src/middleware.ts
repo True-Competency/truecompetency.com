@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import * as Sentry from "@sentry/nextjs";
+import type { UserRole } from "@/lib/types";
 
 const PUBLIC_PATHS = [
   "/signin",
@@ -17,9 +18,7 @@ const PUBLIC_PATHS = [
 
 const PROTECT_PREFIXES = ["/trainee", "/instructor", "/committee"] as const;
 
-type AppRole = "trainee" | "instructor" | "committee" | "admin";
-
-const ROLE_HOME: Record<AppRole, string> = {
+const ROLE_HOME: Record<UserRole, string> = {
   trainee: "/trainee",
   instructor: "/instructor",
   committee: "/committee",
@@ -79,7 +78,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Fetch role from profiles; fallback to trainee
-  let role: AppRole = "trainee";
+  let role: UserRole = "trainee";
   try {
     const { data: prof } = await supabase
       .from("profiles")

@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow } from "@/lib/types";
 import { Search, X, Check, Inbox, ChevronDown } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -31,11 +32,6 @@ type SubgoalRow = {
 };
 
 type DomainRow = { id: string; code: string; name: string };
-
-type TagRow = {
-  id: string;
-  name: string;
-};
 
 type Profile = {
   id: string;
