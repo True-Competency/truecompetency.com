@@ -11,14 +11,14 @@ export type Profile = {
   full_name: string | null;
   first_name: string | null;
   last_name: string | null;
-  role: UserRole | null;
+  role: UserRole;
   committee_role: CommitteeRole | null;
   country_code: string | null;
   country_name: string | null;
   university: string | null;
   hospital: string | null;
   avatar_path: string | null;
-  created_at: string | null;
+  created_at: string;
 };
 
 /**

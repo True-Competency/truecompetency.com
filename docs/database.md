@@ -4,8 +4,8 @@ This document is the single source of truth for the production database that pow
 
 This guide is written for developers who are comfortable with code but may not have formal training in databases. Concepts are explained from first principles where it helps, with references to deeper material for anyone who wants to go further.
 
-**Last updated:** 2026-05-15
-**Current migration:** `0031_fix_qo_trainee_read_recursion`
+**Last updated:** 2026-05-16
+**Current migration:** `0033_profiles_role_created_at_not_null`
 **Database:** Supabase (PostgreSQL 17)
 
 ---
@@ -239,14 +239,14 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 | `full_name` | text | YES | — | Display name. Computed from first/last name via `_make_full_name`. |
 | `first_name` | text | YES | — | First name. |
 | `last_name` | text | YES | — | Last name. |
-| `role` | user_role | YES | — | One of trainee, instructor, committee, admin. NULL until set. |
+| `role` | user_role | NO | — | One of trainee, instructor, committee, admin. Set at profile creation by every signup path. |
 | `committee_role` | text | YES | — | For committee users only: `editor` or `chief_editor`. |
 | `country_code` | text | YES | `'ZZ'` | ISO 2-letter country code. `'ZZ'` means "not yet set." |
 | `country_name` | text | YES | — | Country full name. Synced from `countries.name` via trigger. |
 | `university` | text | YES | — | Free-text. |
 | `hospital` | text | YES | — | Free-text. |
 | `avatar_path` | text | YES | — | Storage path to avatar in `profile-pictures` bucket. |
-| `created_at` | timestamptz | YES | `now()` | When the profile was created. |
+| `created_at` | timestamptz | NO | `now()` | When the profile was created. |
 
 **Foreign keys:**
 
