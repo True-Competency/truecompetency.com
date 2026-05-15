@@ -20,19 +20,22 @@ import {
 } from "lucide-react";
 import SidebarSupportModal from "@/components/SidebarSupportModal";
 
+import type { Profile } from "@/lib/types";
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Profile = {
-  id: string;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  hospital: string | null;
-  university: string | null;
-  country_name: string | null;
-  country_code: string | null;
-  avatar_path: string | null;
-};
+type SidebarProfile = Pick<
+  Profile,
+  | "id"
+  | "full_name"
+  | "first_name"
+  | "last_name"
+  | "hospital"
+  | "university"
+  | "country_name"
+  | "country_code"
+  | "avatar_path"
+>;
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 
@@ -45,7 +48,7 @@ export default function TraineeLayoutClient({
   const pathname = usePathname();
 
   // Profile state
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
 
   // Sidebar collapse (persisted to localStorage)
   const [collapsed, setCollapsed] = useState(false);
@@ -69,7 +72,7 @@ export default function TraineeLayoutClient({
         )
         .eq("id", u.user.id)
         .maybeSingle();
-      if (data && !cancelled) setProfile(data as Profile);
+      if (data && !cancelled) setProfile(data as SidebarProfile);
     })();
     return () => {
       cancelled = true;
@@ -124,14 +127,14 @@ export default function TraineeLayoutClient({
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  function getInitials(p: Profile | null) {
+  function getInitials(p: SidebarProfile | null) {
     if (!p) return "T";
     const fn = p.first_name?.[0] ?? "";
     const ln = p.last_name?.[0] ?? "";
     return (fn + ln || p.full_name?.[0] || "T").toUpperCase();
   }
 
-  function getDisplayName(p: Profile | null) {
+  function getDisplayName(p: SidebarProfile | null) {
     if (!p) return "Loading...";
     return (
       p.full_name ||
@@ -140,7 +143,7 @@ export default function TraineeLayoutClient({
     );
   }
 
-  function getAvatarUrl(p: Profile | null) {
+  function getAvatarUrl(p: SidebarProfile | null) {
     if (!p?.avatar_path) return "";
     return supabase.storage.from("profile-pictures").getPublicUrl(p.avatar_path)
       .data.publicUrl;

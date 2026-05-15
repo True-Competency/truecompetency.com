@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { TagRow, Competency } from "@/lib/types";
 import {
   ArrowRight,
   ChevronDown,
@@ -14,15 +15,6 @@ import {
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type Competency = {
-  id: string;
-  name: string;
-  difficulty: string;
-  tags: string[] | null;
-  position: number | null;
-  subgoal_id: string | null;
-  created_at: string;
-};
 
 type Domain = {
   id: string;
@@ -67,14 +59,6 @@ type QuestionMediaItem = {
   signed_url: string | null;
 };
 
-type TagRow = {
-  id: string;
-  name: string;
-};
-
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
-};
 
 function byPositionThenCode<T extends { position: number; code: string }>(
   a: T,
@@ -266,7 +250,7 @@ export default function CompetenciesPage() {
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
         );
-        const resolved = ((data ?? []) as CompetencyRaw[]).map((c) => ({
+        const resolved = ((data ?? []) as Competency[]).map((c) => ({
           ...c,
           tags: (c.tags ?? [])
             .map((id) => tagNameById.get(id))
@@ -784,7 +768,7 @@ export default function CompetenciesPage() {
           .from("competencies")
           .select("id, name, difficulty, tags, position, subgoal_id, created_at")
           .eq("id", newCompetencyId)
-          .single<CompetencyRaw>();
+          .single<Competency>();
         if (error) throw error;
 
         const resolvedTags = (inserted.tags ?? [])

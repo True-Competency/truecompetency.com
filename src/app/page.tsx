@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-
-type UserRole = "trainee" | "instructor" | "committee" | "admin";
-type Profile = { id: string; role: UserRole };
+import type { UserRole, ProfileIdentity } from "@/lib/types";
 const ROLE_HOME: Record<UserRole, string> = {
   trainee: "/trainee",
   instructor: "/instructor",
@@ -52,7 +50,7 @@ export default function RootPage() {
           .from("profiles")
           .select("id, role")
           .eq("id", uid)
-          .maybeSingle<Profile>();
+          .maybeSingle<ProfileIdentity>();
         if (perr) throw perr;
         if (!prof) {
           // No profile row visible to this session — almost always means the auth

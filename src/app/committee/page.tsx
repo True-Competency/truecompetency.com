@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { Profile } from "@/lib/types";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -17,13 +18,10 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-type Profile = {
-  id: string;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  committee_role: string | null;
-};
+type MeProfile = Pick<
+  Profile,
+  "id" | "full_name" | "first_name" | "last_name" | "committee_role"
+>;
 
 type RecentProposal = {
   id: string;
@@ -56,7 +54,7 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 };
 
 export default function CommitteeDashboard() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<MeProfile | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentProposals, setRecentProposals] = useState<RecentProposal[]>([]);
   const [recentVotes, setRecentVotes] = useState<RecentVote[]>([]);
@@ -77,7 +75,7 @@ export default function CommitteeDashboard() {
             .from("profiles")
             .select("id, full_name, first_name, last_name, committee_role")
             .eq("id", u.user.id)
-            .maybeSingle<Profile>();
+            .maybeSingle<MeProfile>();
           if (prof && !cancelled) setProfile(prof);
         }
 

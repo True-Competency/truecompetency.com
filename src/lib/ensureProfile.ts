@@ -1,8 +1,6 @@
 // src/lib/ensureProfile.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-export type AppRole = "trainee" | "instructor" | "committee" | "admin";
-export type CommitteeRole = "editor" | "chief_editor";
+import type { UserRole, CommitteeRole } from "@/lib/types";
 
 /**
  * Ensure a row exists in public.profiles for the current auth user.
@@ -20,7 +18,7 @@ export type CommitteeRole = "editor" | "chief_editor";
  */
 export async function ensureProfile(
   supabase: SupabaseClient,
-  role?: AppRole
+  role?: UserRole
 ) {
   // Who am I?
   const { data: u, error: uErr } = await supabase.auth.getUser();
@@ -41,7 +39,7 @@ export async function ensureProfile(
     getStr([mdFirst ?? "", mdLast ?? ""].join(" ").trim()) ??
     getStr(md.full_name);
   const mdRoleRaw = getStr(md.role);
-  const mdRole: Exclude<AppRole, "admin"> | null =
+  const mdRole: Exclude<UserRole, "admin"> | null =
     mdRoleRaw === "trainee" ||
     mdRoleRaw === "instructor" ||
     mdRoleRaw === "committee"
@@ -77,12 +75,12 @@ export async function ensureProfile(
   if (selErr) throw selErr;
 
   // Decide role: admin trumps everything, else metadata -> argument -> default "trainee"
-  const desiredRole: AppRole = (isAdmin ? "admin" : mdRole) ?? role ?? "trainee";
+  const desiredRole: UserRole = (isAdmin ? "admin" : mdRole) ?? role ?? "trainee";
 
   if (existing) {
     // No downgrades; only promote to admin if needed or enrich missing fields.
     const updates: {
-      role?: AppRole;
+      role?: UserRole;
       email?: string | null;
       first_name?: string | null;
       last_name?: string | null;

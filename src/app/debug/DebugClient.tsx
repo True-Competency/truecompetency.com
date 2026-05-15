@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { AssignmentRow, Profile, Competency } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type DiagRow = {
@@ -12,11 +13,7 @@ type DiagRow = {
   extra?: unknown;
 };
 
-type Profile = {
-  id: string;
-  email: string | null;
-  role: "trainee" | "instructor" | "committee";
-};
+type MeProfile = Pick<Profile, "id" | "email" | "role">;
 
 type ProgressSample = {
   student_id: string;
@@ -26,14 +23,7 @@ type ProgressSample = {
   pct?: number | null;
 };
 
-type AssignmentRow = { student_id: string; competency_id: string };
-
-type CompetencyRow = {
-  id: string;
-  name: string | null;
-  difficulty: string | null;
-  tags: string[] | null;
-};
+type DebugCompetencyRow = Pick<Competency, "id" | "name" | "difficulty" | "tags">;
 
 /* Common Supabase response shapes (keeps generics tidy) */
 type SupaSingle<T> = { data: T | null; error: { message: string } | null };
@@ -155,14 +145,14 @@ export default function DebugClient() {
 
       // Profile (me) & RLS negative (not me)
       if (user?.id) {
-        const { out: meOut, dt: meDt } = await timeit<SupaSingle<Profile>>(
+        const { out: meOut, dt: meDt } = await timeit<SupaSingle<MeProfile>>(
           "profiles (current user)",
           async () =>
             await supabase
               .from("profiles")
               .select("id, email, role")
               .eq("id", user.id)
-              .maybeSingle<Profile>(),
+              .maybeSingle<MeProfile>(),
           add
         );
 
@@ -336,7 +326,7 @@ export default function DebugClient() {
           .limit(3);
         const ids = (p ?? []).map((r) => r.competency_id);
         if (ids.length) {
-          const { out, dt } = await timeit<SupaList<CompetencyRow>>(
+          const { out, dt } = await timeit<SupaList<DebugCompetencyRow>>(
             "competencies (by ids from progress)",
             async () =>
               await supabase

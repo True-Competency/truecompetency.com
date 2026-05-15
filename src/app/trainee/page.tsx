@@ -4,6 +4,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type {
+  TagRow,
+  TraineeAssignmentRef,
+  Profile,
+  Competency,
+  ProgressRow,
+} from "@/lib/types";
 import ReactCountryFlag from "react-country-flag";
 import {
   AreaChart,
@@ -27,34 +34,14 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Profile = {
-  id: string;
-  role: string;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  email: string | null;
-};
+type MeProfile = Pick<
+  Profile,
+  "id" | "role" | "first_name" | "last_name" | "full_name" | "email"
+>;
 
-type ProgressRow = {
-  competency_id: string;
-  pct: number;
-};
+type CompetencyProgressRef = Pick<ProgressRow, "competency_id" | "pct">;
 
-type AssignmentRow = {
-  competency_id: string;
-};
-
-type CompetencyRow = {
-  id: string;
-  difficulty: string | null;
-  tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
-};
+type CompetencyDiffRef = Pick<Competency, "id" | "difficulty" | "tags">;
 
 type AnswerRow = {
   is_correct: boolean;
@@ -114,14 +101,14 @@ export default function TraineeDashboard() {
   const router = useRouter();
 
   // Auth + profile
-  const [me, setMe] = useState<Profile | null>(null);
+  const [me, setMe] = useState<MeProfile | null>(null);
 
   // Core data
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
   const [progressMap, setProgressMap] = useState<Map<string, number>>(
     new Map(),
   );
-  const [competencies, setCompetencies] = useState<CompetencyRow[]>([]);
+  const [competencies, setCompetencies] = useState<CompetencyDiffRef[]>([]);
 
   // New stats data
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
@@ -166,7 +153,7 @@ export default function TraineeDashboard() {
           .from("profiles")
           .select("id, role, first_name, last_name, full_name, email")
           .eq("id", uid)
-          .maybeSingle<Profile>();
+          .maybeSingle<MeProfile>();
         if (profErr) throw profErr;
         if (!prof) {
           // No profile row visible to this session — almost always means the auth
@@ -195,20 +182,20 @@ export default function TraineeDashboard() {
             .from("competency_assignments")
             .select("competency_id")
             .eq("student_id", uid)
-            .returns<AssignmentRow[]>(),
+            .returns<TraineeAssignmentRef[]>(),
 
           // My progress per competency
           supabase
             .from("student_competency_progress")
             .select("competency_id, pct")
             .eq("student_id", uid)
-            .returns<ProgressRow[]>(),
+            .returns<CompetencyProgressRef[]>(),
 
           // All competencies — id, difficulty, tags UUID[]
           supabase
             .from("competencies")
             .select("id, difficulty, tags")
-            .returns<CompetencyRow[]>(),
+            .returns<CompetencyDiffRef[]>(),
 
           // Tag uuid -> name lookup table
           supabase
@@ -482,7 +469,7 @@ export default function TraineeDashboard() {
 
   // ── Display helpers ───────────────────────────────────────────────────────────
 
-  function getDisplayName(p: Profile | null) {
+  function getDisplayName(p: MeProfile | null) {
     if (!p) return "";
     return (
       p.full_name ||

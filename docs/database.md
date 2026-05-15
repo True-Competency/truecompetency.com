@@ -4,8 +4,8 @@ This document is the single source of truth for the production database that pow
 
 This guide is written for developers who are comfortable with code but may not have formal training in databases. Concepts are explained from first principles where it helps, with references to deeper material for anyone who wants to go further.
 
-**Last updated:** 2026-05-15
-**Current migration:** `0029_committee_question_editing`
+**Last updated:** 2026-05-16
+**Current migration:** `0033_profiles_role_created_at_not_null`
 **Database:** Supabase (PostgreSQL 17)
 
 ---
@@ -177,7 +177,7 @@ The clinical taxonomy that defines what trainees are learning.
 - **`competencies`** — Individual competencies. Each belongs to a subgoal.
 - **`competency_questions`** — Multiple-choice questions attached to a competency.
 - **`question_options`** — The 4 options for each question. One is marked correct.
-- **`question_media`** — Image or video files attached to questions.
+- **`question_media`** — Image or video files attached to either a question or an individual option.
 - **`tags`** — Flexible labels applied to competencies.
 
 The hierarchy: **domain → subgoal → competency → question → options**.
@@ -239,14 +239,14 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 | `full_name` | text | YES | — | Display name. Computed from first/last name via `_make_full_name`. |
 | `first_name` | text | YES | — | First name. |
 | `last_name` | text | YES | — | Last name. |
-| `role` | user_role | YES | — | One of trainee, instructor, committee, admin. NULL until set. |
+| `role` | user_role | NO | — | One of trainee, instructor, committee, admin. Set at profile creation by every signup path. |
 | `committee_role` | text | YES | — | For committee users only: `editor` or `chief_editor`. |
 | `country_code` | text | YES | `'ZZ'` | ISO 2-letter country code. `'ZZ'` means "not yet set." |
 | `country_name` | text | YES | — | Country full name. Synced from `countries.name` via trigger. |
 | `university` | text | YES | — | Free-text. |
 | `hospital` | text | YES | — | Free-text. |
 | `avatar_path` | text | YES | — | Storage path to avatar in `profile-pictures` bucket. |
-| `created_at` | timestamptz | YES | `now()` | When the profile was created. |
+| `created_at` | timestamptz | NO | `now()` | When the profile was created. |
 
 **Foreign keys:**
 
@@ -463,7 +463,7 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 |---|---|---|---|---|
 | `id` | uuid | NO | `gen_random_uuid()` | Primary key. |
 | `question_id` | uuid | NO | — | The question. |
-| `body` | text | NO | — | The option text. |
+| `body` | text | YES | — | Option label. May be NULL only when the option has at least one live attached `question_media` row. Enforced by `committee_*` RPCs and trainee-read RLS. |
 | `is_correct` | boolean | NO | `false` | Exactly one per question must be true. |
 | `sort_order` | integer | NO | — | Display order, 0-indexed. |
 | `created_at` | timestamptz | NO | `now()` | — |
@@ -487,19 +487,21 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 
 **Notes:**
 - The one-correct-per-question invariant is enforced by the partial unique index above. Changes to `is_correct` go through `committee_set_correct_option`, which demotes the old correct option and promotes the new one atomically inside a single transaction (locking the question row) to preserve the invariant.
+- `body` is conditionally nullable: it may be NULL only when the option has at least one live attached `question_media` row. The invariant is enforced in the RPC layer (`committee_update_option` rejects NULLing the body if no media is attached, and `committee_delete_media` blocks removing the last media on a NULL-body option) and in trainee-read RLS (`qo_trainee_read_enrolled` hides options with NULL body and zero live media). There is no schema-level CHECK for this because PostgreSQL CHECK constraints cannot reference other tables.
 
 ---
 
 ### `question_media`
 
-**Purpose:** Image or video files attached to questions. Files live in the `question-media` Supabase Storage bucket; this table holds the metadata.
+**Purpose:** Image or video files attached to either a question or an individual option. Files live in the `question-media` Supabase Storage bucket; this table holds the metadata.
 
 **Columns:**
 
 | Column | Type | Nullable | Default | Meaning |
 |---|---|---|---|---|
 | `id` | uuid | NO | `gen_random_uuid()` | Primary key. |
-| `question_id` | uuid | YES | — | The question. |
+| `question_id` | uuid | YES | — | The parent question. Exactly one of `question_id` or `option_id` must be set. |
+| `option_id` | uuid | YES | — | The parent option. Exactly one of `question_id` or `option_id` must be set. |
 | `uploaded_by` | uuid | NO | — | The committee member who uploaded. |
 | `storage_path` | text | NO | — | Full path in the storage bucket. |
 | `file_name` | text | NO | — | Display filename. |
@@ -507,20 +509,34 @@ For each table you'll find: purpose, columns, foreign keys, indexes/constraints,
 | `mime_type` | text | NO | — | Full MIME type. |
 | `file_size` | bigint | NO | — | Bytes. Must be > 0. |
 | `created_at` | timestamptz | NO | `now()` | — |
+| `updated_at` | timestamptz | NO | `now()` | Stamped by every successful committee media RPC. |
+| `updated_by` | uuid | YES | — | The committee member or admin who made the last write. |
+| `deleted_at` | timestamptz | YES | — | Soft-delete marker. NULL means the row is live. |
+| `deleted_by` | uuid | YES | — | Who soft-deleted the row. |
+| `version` | integer | NO | `1` | Optimistic-lock counter. Incremented on every successful write. |
 
 **Foreign keys:**
 
 | Column | References | On delete |
 |---|---|---|
 | `question_id` | `competency_questions(id)` | CASCADE (the files in storage are NOT deleted automatically) |
+| `option_id` | `question_options(id)` | CASCADE |
 | `uploaded_by` | `profiles(id)` | RESTRICT |
+| `updated_by` | `profiles(id)` | SET NULL |
+| `deleted_by` | `profiles(id)` | SET NULL |
 
 **Check constraints:**
+- `question_media_one_parent_chk` — exactly one of `question_id` and `option_id` is non-null. A media row attaches to a question or to an option, never both, never neither.
 - `file_type` must be `image` or `video`.
 - `file_size > 0`.
 
+**Indexes:**
+- `question_media_option_active_idx` — partial index on `(option_id) WHERE option_id IS NOT NULL AND deleted_at IS NULL`. Keeps "live media on this option" lookups cheap.
+
 **Notes:**
-- Storage files and DB rows can drift out of sync. Managing media requires careful coordination.
+- Media now attaches to either a question (the question stem carries an image/video) or an individual option (the option *is* an image/video, with an optional or absent text label). This dual-parent model is what makes "media-only options" possible — see the `question_options.body` nullability note.
+- Soft-delete + version pattern matches `competency_questions` and `question_options` (added in migration `0029` for those tables, in migration `0030` here). Edits, attaches, and deletes go through `committee_attach_media_to_question`, `committee_attach_media_to_option`, and `committee_delete_media`; direct writes are blocked by RLS.
+- Storage files and DB rows can drift out of sync. When a row is soft-deleted, the underlying file in the `question-media` bucket is not removed automatically and must be cleaned up manually.
 - Originally had a `stage_id` column for staged-question media; dropped in migration `0011`.
 
 ---
@@ -761,6 +777,9 @@ Functions in functional groups, not alphabetical.
 **`_make_full_name(p_first text, p_last text) → text`**
 Concatenates first and last name into a single full name, trimming whitespace. Returns NULL if both inputs are empty. `IMMUTABLE`, `INVOKER`.
 
+**`_option_has_live_media(p_option_id uuid) → boolean`**
+Returns true if the option has at least one live attached `question_media` row. `STABLE`, `SECURITY DEFINER`. Used by `qo_trainee_read_enrolled` to break the RLS recursion cycle that would otherwise form between `qo` and `qm` trainee policies (a definer function bypasses RLS on the tables it reads internally). Added in migration `0031` to hotfix a recursion bug introduced by `0030`. The underscore prefix matches the existing convention for internal helpers.
+
 **`is_app_admin(uid uuid) → boolean`**
 Returns true if the user is in `app_admins`. Used in many RLS policies. `STABLE`, `SECURITY DEFINER`.
 
@@ -787,9 +806,6 @@ All `SECURITY DEFINER`. Each validates the caller has `committee_role = 'chief_e
 **`chair_create_competency(p_name text, p_difficulty text, p_tags uuid[], p_subgoal_id uuid) → uuid`**
 Creates a new live competency directly (bypassing staging). Validates inputs. Auto-assigns `position` at end of list. Returns the new ID. **Note:** validates difficulty against 3 values, missing `Advanced` (see backlog).
 
-**`chair_create_question(p_competency_id uuid, p_question_text text, p_options text[], p_correct_index integer) → uuid`**
-Creates a new question with exactly 4 options. Validates everything.
-
 **`chair_create_tag(p_name text) → uuid`**
 Creates a new tag. Strips leading hash characters.
 
@@ -807,25 +823,37 @@ Bulk-updates `subgoal_id` of multiple competencies. Validates input thoroughly.
 
 ### Committee question-editing RPCs
 
-These RPCs are how committee members edit live questions and options. Direct table writes are blocked by RLS; all changes flow through these functions, which enforce role checks, version-based optimistic locking, and audit logging. All are `SECURITY DEFINER` and require the caller to be either a committee member (`auth_is_committee`) or an admin (`is_app_admin`). Every successful write inserts one row into `audit_log` in the same transaction.
+These RPCs are how committee members create, edit, delete, and manage media on live questions and options. Direct table writes are blocked by RLS; all changes flow through these functions, which enforce role checks, version-based optimistic locking, and audit logging. All are `SECURITY DEFINER` and require the caller to be either a committee member (`auth_is_committee`) or an admin (`is_app_admin`). Every successful write inserts one row into `audit_log` in the same transaction.
+
+**`committee_create_question(p_competency_id uuid, p_question_text text, p_options text[], p_correct_index integer) → uuid`**
+Creates a new question and exactly 4 options in one transaction. Replaces the dropped `chair_create_question` (migration `0030`) with a widened role check — any committee member or admin may call it, not only the chief editor. Validates the question text is non-empty, that exactly 4 options are provided with non-empty bodies, and that `p_correct_index` is 1–4. Writes five `audit_log` entries (one for the question, four for the options). Returns the new question's id.
 
 **`committee_update_question(p_id uuid, p_body text, p_expected_version integer) → integer`**
 Updates a question's body. Validates non-empty body, checks the question exists and is not soft-deleted, and rejects with `P0001` if `p_expected_version` doesn't match the current `version`. Bumps `version`, stamps `updated_at`/`updated_by`, and writes an `update` audit entry. Returns the new version.
 
 **`committee_update_option(p_id uuid, p_body text, p_sort_order integer, p_expected_version integer) → integer`**
-Updates an option's body and sort_order only — `is_correct` is changed via `committee_set_correct_option` to preserve the one-correct-per-question invariant atomically. Same validation and optimistic-locking pattern as `committee_update_question`. Returns the new version.
+Updates an option's body and sort_order. `is_correct` is changed via `committee_set_correct_option` to preserve the one-correct-per-question invariant atomically. Empty or whitespace-only `p_body` is normalized to NULL; if the result is NULL, the RPC verifies the option has at least one live attached media row and rejects with `P0001` otherwise (option cannot be both label-less and media-less). Same optimistic-locking pattern as `committee_update_question`. Returns the new version.
 
 **`committee_set_correct_option(p_question_id uuid, p_new_correct_option_id uuid) → void`**
 Atomically demotes the current correct option (if any) and promotes the specified one. Locks the parent question row with `FOR UPDATE` to serialize concurrent attempts on the same question. Verifies the candidate option belongs to the question and is live. Both options get version-bumped and each gets its own `update` audit entry. No-op if the candidate is already the correct option.
 
 **`committee_add_option(p_question_id uuid, p_body text, p_sort_order integer) → uuid`**
-Inserts a new option, always with `is_correct = false` — use `committee_set_correct_option` afterward to change correctness. Validates non-empty body, non-negative sort_order, and that the parent question exists and is not soft-deleted. Writes an `insert` audit entry. Returns the new option's id.
+Inserts a new option, always with `is_correct = false` — use `committee_set_correct_option` afterward to change correctness. Empty or whitespace-only `p_body` is normalized to NULL; the resulting "half-built option" state (NULL body, no media yet) is hidden from trainees by `qo_trainee_read_enrolled` until media is attached. Validates non-negative sort_order and that the parent question exists and is not soft-deleted. Writes an `insert` audit entry. Returns the new option's id.
 
 **`committee_delete_option(p_id uuid, p_expected_version integer) → void`**
-Soft-deletes an option. **Rejects deletion of the currently-correct option** to protect the one-correct-per-question invariant — to delete the correct option, first call `committee_set_correct_option` to move correctness elsewhere. Sets `deleted_at`/`deleted_by`, bumps `version`, and writes a `soft_delete` audit entry.
+Soft-deletes an option. **Rejects deletion of the currently-correct option** to protect the one-correct-per-question invariant — to delete the correct option, first call `committee_set_correct_option` to move correctness elsewhere. Cascades the soft-delete to every live `question_media` row attached to the option, each with its own `soft_delete` audit entry. Sets `deleted_at`/`deleted_by`, bumps `version`, and writes a `soft_delete` audit entry for the option itself.
 
 **`committee_delete_question(p_id uuid, p_expected_version integer) → void`**
-Soft-deletes the question and **cascades the soft-delete to every live option** of that question. Each cascaded option gets its own `soft_delete` audit entry, so the history is fully reconstructable per row. Standard optimistic-locking and not-already-deleted checks on the question.
+Soft-deletes the question and cascades the soft-delete to: (a) every live `question_media` row attached directly to the question, (b) every live option of that question, and (c) every live `question_media` row attached to each of those options. Each cascaded row gets its own `soft_delete` audit entry so the history is fully reconstructable per row. Standard optimistic-locking and not-already-deleted checks on the question.
+
+**`committee_attach_media_to_question(p_question_id uuid, p_storage_path text, p_file_name text, p_file_type text, p_mime_type text, p_file_size bigint) → uuid`**
+Inserts a `question_media` row with `question_id` set (and `option_id` NULL), recording the metadata for a file that the frontend has already uploaded to the `question-media` Storage bucket. Validates non-empty storage_path/file_name/mime_type, `file_type` in (`image`, `video`), `file_size > 0`, and that the parent question is live. Writes an `insert` audit entry. Returns the new media row's id.
+
+**`committee_attach_media_to_option(p_option_id uuid, p_storage_path text, p_file_name text, p_file_type text, p_mime_type text, p_file_size bigint) → uuid`**
+Same as `committee_attach_media_to_question` but the row is attached to an option (`option_id` set, `question_id` NULL). Additionally verifies that the option is live **and** its parent question is live before inserting. Returns the new media row's id.
+
+**`committee_delete_media(p_id uuid, p_expected_version integer) → void`**
+Soft-deletes a media row. **Blocks deletion of the last live media on an option whose body is NULL**, since that would leave a trainee-unreadable option (no text, no media). The error message is exact: "Cannot delete the last media on an option with no text. Add an option label first, or delete the option entirely." Standard optimistic-locking and not-already-deleted checks. Writes a `soft_delete` audit entry.
 
 ### Instructor and user RPCs
 
@@ -976,14 +1004,14 @@ No INSERT/UPDATE/DELETE policies for non-admins — writes go through chair RPCs
 
 Same pattern as `competency_questions`:
 - **`qo_committee_read`**, **`qo_instructor_read_all`** (SELECT).
-- **`qo_trainee_read_enrolled`** (SELECT) — Trainees read options only for enrolled competencies, and only when both the option and its parent question are live (`question_options.deleted_at IS NULL` AND the parent `competency_questions.deleted_at IS NULL`).
+- **`qo_trainee_read_enrolled`** (SELECT) — Trainees read options only for enrolled competencies, only when the option is live (`question_options.deleted_at IS NULL`) and its parent question is live, AND only when the option has either a non-NULL `body` or at least one live attached media row. The media-existence check goes through `_option_has_live_media`, a `SECURITY DEFINER` helper that bypasses RLS on `question_media` to avoid the recursion cycle that would otherwise form between this policy and `qm_trainee_read_enrolled` (fixed in migration `0031`).
 - **`qo_admin_all`** (ALL).
 
 ### `question_media`
 
 - **`qm_committee_read`** (SELECT) — Committee reads all media.
 - **`qm_instructor_read_all`** (SELECT) — Instructors read all media.
-- **`qm_trainee_read_enrolled`** (SELECT) — Trainees read media only for enrolled competencies, and only when the parent question is live (`competency_questions.deleted_at IS NULL`).
+- **`qm_trainee_read_enrolled`** (SELECT) — Trainees read media only for enrolled competencies. The media row itself must be live (`deleted_at IS NULL`), and then one of two branches must hold: (a) it is attached to a question (`question_id` set), the parent question is live, and the trainee is enrolled in that competency; or (b) it is attached to an option (`option_id` set), the parent option is live, the option's parent question is live, and the trainee is enrolled in that competency.
 - **`qm_committee_insert`** (INSERT) — Any committee member uploads. Requires `uploaded_by = auth.uid()`.
 - **`qm_committee_delete`** (DELETE) — Any committee member deletes any media.
 - **`qm_admin_all`** (ALL) — Admin modifies.
@@ -1072,7 +1100,7 @@ Supabase linter `0010_security_definer_view`. Intentional design; warning acknow
 ### Future feature work
 
 **13. Frontend UI for committee question editing.**
-RPCs and audit log exist (migration `0029`); the frontend edit/delete UI is still to be built.
+RPCs and audit log exist (migrations `0029` and `0030` — edit/delete in `0029`, create and media operations in `0030`); the frontend create/edit/delete UI is still to be built.
 
 **14. Competency lifecycle redesign.**
 Replaces auto-merge-on-vote with chair-decided approval. Stage rows kept forever for audit. New columns and tables. Multi-proposal threads.

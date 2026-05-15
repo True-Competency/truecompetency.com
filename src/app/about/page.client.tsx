@@ -5,9 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Stethoscope, GraduationCap } from "lucide-react";
-
-type UserRole = "trainee" | "instructor" | "committee" | "admin";
-type Profile = { id: string; role: UserRole };
+import type { UserRole, ProfileIdentity } from "@/lib/types";
 type LandingStats = {
   competencies: number;
   committeeMembers: number;
@@ -49,7 +47,7 @@ export default function RootPage({ stats }: { stats: LandingStats }) {
           .from("profiles")
           .select("id, role")
           .eq("id", uid)
-          .maybeSingle<Profile>();
+          .maybeSingle<ProfileIdentity>();
         if (!prof) {
           // No profile row visible to this session — almost always means the auth
           // session expired or token refresh failed mid-load, causing RLS to

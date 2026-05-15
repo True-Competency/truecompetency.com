@@ -18,20 +18,22 @@ import {
   ExternalLink,
   ArrowUpRight,
 } from "lucide-react";
+import type { Profile } from "@/lib/types";
 
-type Profile = {
-  id: string;
-  email: string;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  role: string;
-  committee_role: string | null;
-  country_name: string | null;
-  hospital: string | null;
-  university: string | null;
-  created_at: string;
-};
+type AdminUserRow = Pick<
+  Profile,
+  | "id"
+  | "email"
+  | "full_name"
+  | "first_name"
+  | "last_name"
+  | "role"
+  | "committee_role"
+  | "country_name"
+  | "hospital"
+  | "university"
+  | "created_at"
+>;
 
 type PlatformStats = {
   totalUsers: number;
@@ -71,8 +73,8 @@ function timeAgo(dateStr: string) {
 export default function AdminClient() {
   const [adminName, setAdminName] = useState<string>("Admin");
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [users, setUsers] = useState<Profile[]>([]);
-  const [filtered, setFiltered] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [filtered, setFiltered] = useState<AdminUserRow[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -128,10 +130,10 @@ export default function AdminClient() {
         ]);
 
         if (!cancelled && allUsers) {
-          setUsers(allUsers as Profile[]);
-          setFiltered(allUsers as Profile[]);
+          setUsers(allUsers as AdminUserRow[]);
+          setFiltered(allUsers as AdminUserRow[]);
 
-          const roles = allUsers as Profile[];
+          const roles = allUsers as AdminUserRow[];
           const countries = new Set(
             roles.map((u) => u.country_name).filter(Boolean),
           ).size;
@@ -178,11 +180,11 @@ export default function AdminClient() {
     setFiltered(result);
   }, [search, roleFilter, users]);
 
-  const displayName = (u: Profile) =>
+  const displayName = (u: AdminUserRow) =>
     (u.full_name ?? [u.first_name, u.last_name].filter(Boolean).join(" ")) ||
     u.email;
 
-  const initials = (u: Profile) => {
+  const initials = (u: AdminUserRow) => {
     const name =
       u.full_name ?? [u.first_name, u.last_name].filter(Boolean).join(" ");
     if (name)

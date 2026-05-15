@@ -2,23 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-
-type Competency = {
-  id: string;
-  name: string | null;
-  difficulty: string | null;
-  tags: string[] | null;
-  position: number | null;
-};
-
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
-};
-
-type TagRow = {
-  id: string;
-  name: string;
-};
+import type { TagRow, CompetencyRow } from "@/lib/types";
 
 type Props = {
   studentId: string;
@@ -33,7 +17,7 @@ export default function AssignDialog({
   onClose,
   onAssigned,
 }: Props) {
-  const [allComps, setAllComps] = useState<Competency[]>([]);
+  const [allComps, setAllComps] = useState<CompetencyRow[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -68,7 +52,7 @@ export default function AssignDialog({
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
         );
-        const resolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+        const resolved = ((comps ?? []) as CompetencyRow[]).map((c) => ({
           ...c,
           tags: (c.tags ?? [])
             .map((id) => tagNameById.get(id))
