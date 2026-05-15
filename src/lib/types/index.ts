@@ -8,7 +8,6 @@ export type {
   TagRow,
   Competency,
   CompetencyDifficulty,
-  CompetencyRaw,
   AssignmentRow,
   TraineeAssignmentRef,
   CompetencyRow,

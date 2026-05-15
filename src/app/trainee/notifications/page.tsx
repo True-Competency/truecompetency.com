@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import type { ProgressRow } from "@/lib/types";
 import {
   BookOpen,
   CheckCircle2,
@@ -44,9 +45,7 @@ type AnswerRow = {
   } | null;
 };
 
-type ProgressRow = {
-  competency_id: string;
-  pct: number;
+type ProgressWithCompetency = Pick<ProgressRow, "competency_id" | "pct"> & {
   competencies: { name: string } | null;
 };
 
@@ -198,7 +197,7 @@ export default function TraineeNotificationsPage() {
             .select("competency_id, pct, competencies(name)")
             .eq("student_id", uid)
             .gte("pct", 100)
-            .returns<ProgressRow[]>(),
+            .returns<ProgressWithCompetency[]>(),
         ]);
 
         if (aErr) throw aErr;

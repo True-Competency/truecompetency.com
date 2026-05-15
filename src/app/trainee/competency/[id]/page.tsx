@@ -4,20 +4,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { TagRow } from "@/lib/types";
+import type {
+  TagRow,
+  Competency as CanonicalCompetency,
+} from "@/lib/types";
 
 /* ------------------------- Types ------------------------- */
-type Competency = {
-  id: string;
-  name: string;
-  difficulty: string | null;
-  tags: string[] | null;
-  created_at: string;
-};
-
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
-};
+type CompetencyDetail = Pick<
+  CanonicalCompetency,
+  "id" | "name" | "difficulty" | "tags" | "created_at"
+>;
 
 type Question = {
   id: string;
@@ -74,7 +70,7 @@ export default function TraineeCompetencyPage() {
   const [userId, setUserId] = useState<string | null>(null);
 
   // data
-  const [competency, setCompetency] = useState<Competency | null>(null);
+  const [competency, setCompetency] = useState<CompetencyDetail | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [optionsByQ, setOptionsByQ] = useState<OptionsByQ>({});
   const [answers, setAnswers] = useState<Record<string, Answer>>({}); // by question_id
@@ -122,7 +118,7 @@ export default function TraineeCompetencyPage() {
               .from("competencies")
               .select("id, name, difficulty, tags, created_at")
               .eq("id", competencyId)
-              .single<CompetencyRaw>(),
+              .single<CompetencyDetail>(),
             supabase.from("tags").select("id, name"),
           ]);
         if (cerr) throw cerr;
@@ -131,7 +127,7 @@ export default function TraineeCompetencyPage() {
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
         );
-        const resolvedComp: Competency = {
+        const resolvedComp: CompetencyDetail = {
           ...comp,
           tags: (comp.tags ?? [])
             .map((id) => tagNameById.get(id))

@@ -4,7 +4,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { TagRow, AssignmentRow } from "@/lib/types";
+import type {
+  TagRow,
+  AssignmentRow,
+  Competency as CanonicalCompetency,
+  ProgressRow,
+} from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type TraineeProfile = {
@@ -16,29 +21,22 @@ type TraineeProfile = {
   role: string;
 };
 
-type Competency = {
-  id: string;
-  name: string | null;
-  difficulty: string | null;
-  tags: string[] | null;
-};
+type CompetencyListRow = Pick<
+  CanonicalCompetency,
+  "id" | "name" | "difficulty" | "tags"
+>;
 
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
-};
-
-type ProgressRow = {
-  student_id: string;
-  competency_id: string;
-  pct: number;
-};
+type TraineeProgressRef = Pick<
+  ProgressRow,
+  "student_id" | "competency_id" | "pct"
+>;
 
 type QuestionRow = {
   competency_id: string;
 };
 
 type Item = {
-  competency: Competency;
+  competency: CompetencyListRow;
   pct: number;
   hasQuestions: boolean;
 };
@@ -168,7 +166,7 @@ export default function InstructorTraineeDetailPage() {
       const tagNameById = new Map(
         ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
       );
-      const compsResolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+      const compsResolved = ((comps ?? []) as CompetencyListRow[]).map((c) => ({
         ...c,
         tags: (c.tags ?? [])
           .map((id) => tagNameById.get(id))
@@ -181,7 +179,7 @@ export default function InstructorTraineeDetailPage() {
         .select("student_id,competency_id,pct")
         .eq("student_id", traineeId)
         .in("competency_id", compIds)
-        .returns<ProgressRow[]>();
+        .returns<TraineeProgressRef[]>();
       if (pErr) throw pErr;
 
       const pctByComp = new Map<string, number>();

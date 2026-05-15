@@ -5,7 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "next-themes";
-import type { TagRow, AssignmentRow } from "@/lib/types";
+import type {
+  TagRow,
+  AssignmentRow,
+  CompetencyRow,
+  ProgressRow,
+} from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type TraineeProfile = {
@@ -28,7 +33,7 @@ type MeProfile = {
   avatar_path: string | null;
 };
 
-type ProgressRow = { student_id: string; pct: number };
+type StudentProgressRef = Pick<ProgressRow, "student_id" | "pct">;
 
 type StudentRow = {
   id: string;
@@ -41,17 +46,6 @@ type StudentRow = {
   completedCount: number;
 };
 
-type Competency = {
-  id: string;
-  name: string | null;
-  difficulty: string | null; // beginner | intermediate | expert
-  tags: string[] | null;
-  position: number | null;
-};
-
-type CompetencyRaw = Omit<Competency, "tags"> & {
-  tags: string[] | null; // UUID[] from DB
-};
 
 /* ---------------- Page ---------------- */
 export default function InstructorClient() {
@@ -124,7 +118,7 @@ export default function InstructorClient() {
   }, [meProfile?.avatar_path]);
 
   // Competencies (used for assign modal)
-  const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [competencies, setCompetencies] = useState<CompetencyRow[]>([]);
   const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   // KPI widgets
@@ -218,7 +212,7 @@ export default function InstructorClient() {
             .from("student_competency_progress")
             .select("student_id, pct")
             .in("student_id", traineeIds)
-            .returns<ProgressRow[]>();
+            .returns<StudentProgressRef[]>();
           if (prErr) throw prErr;
 
           (progress ?? []).forEach((r) => {
@@ -366,7 +360,7 @@ export default function InstructorClient() {
         const tagNameById = new Map(
           ((tagsData ?? []) as TagRow[]).map((t) => [t.id, t.name]),
         );
-        const compsResolved = ((comps ?? []) as CompetencyRaw[]).map((c) => ({
+        const compsResolved = ((comps ?? []) as CompetencyRow[]).map((c) => ({
           ...c,
           tags: (c.tags ?? [])
             .map((id) => tagNameById.get(id))

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { AssignmentRow, Profile } from "@/lib/types";
+import type { AssignmentRow, Profile, Competency } from "@/lib/types";
 
 /* ---------------- Types ---------------- */
 type DiagRow = {
@@ -23,12 +23,7 @@ type ProgressSample = {
   pct?: number | null;
 };
 
-type CompetencyRow = {
-  id: string;
-  name: string | null;
-  difficulty: string | null;
-  tags: string[] | null;
-};
+type DebugCompetencyRow = Pick<Competency, "id" | "name" | "difficulty" | "tags">;
 
 /* Common Supabase response shapes (keeps generics tidy) */
 type SupaSingle<T> = { data: T | null; error: { message: string } | null };
@@ -331,7 +326,7 @@ export default function DebugClient() {
           .limit(3);
         const ids = (p ?? []).map((r) => r.competency_id);
         if (ids.length) {
-          const { out, dt } = await timeit<SupaList<CompetencyRow>>(
+          const { out, dt } = await timeit<SupaList<DebugCompetencyRow>>(
             "competencies (by ids from progress)",
             async () =>
               await supabase

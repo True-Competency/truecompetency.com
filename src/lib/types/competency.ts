@@ -45,19 +45,6 @@ export type Competency = {
 };
 
 /**
- * CompetencyRaw is now an alias for Competency.
- *
- * Historically this type expressed "tags may be NULL from the DB" before the
- * canonical Competency reflected that nullability. With Competency.tags now
- * typed as `string[] | null` per the DB schema, CompetencyRaw and Competency
- * are equivalent. The alias is kept for migration ergonomics during Tasks 4-5;
- * it will be removed once all call sites use Competency directly.
- *
- * @deprecated Use Competency directly.
- */
-export type CompetencyRaw = Competency;
-
-/**
  * The minimal Competency subset used by trainee-side list pages
  * (progress, competencies). Derived from canonical Competency.
  */

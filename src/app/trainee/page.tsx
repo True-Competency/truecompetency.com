@@ -4,7 +4,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import type { TagRow, TraineeAssignmentRef, Profile } from "@/lib/types";
+import type {
+  TagRow,
+  TraineeAssignmentRef,
+  Profile,
+  Competency,
+  ProgressRow,
+} from "@/lib/types";
 import ReactCountryFlag from "react-country-flag";
 import {
   AreaChart,
@@ -33,16 +39,9 @@ type MeProfile = Pick<
   "id" | "role" | "first_name" | "last_name" | "full_name" | "email"
 >;
 
-type ProgressRow = {
-  competency_id: string;
-  pct: number;
-};
+type CompetencyProgressRef = Pick<ProgressRow, "competency_id" | "pct">;
 
-type CompetencyRow = {
-  id: string;
-  difficulty: string | null;
-  tags: string[] | null; // UUID[] from DB
-};
+type CompetencyDiffRef = Pick<Competency, "id" | "difficulty" | "tags">;
 
 type AnswerRow = {
   is_correct: boolean;
@@ -109,7 +108,7 @@ export default function TraineeDashboard() {
   const [progressMap, setProgressMap] = useState<Map<string, number>>(
     new Map(),
   );
-  const [competencies, setCompetencies] = useState<CompetencyRow[]>([]);
+  const [competencies, setCompetencies] = useState<CompetencyDiffRef[]>([]);
 
   // New stats data
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
@@ -190,13 +189,13 @@ export default function TraineeDashboard() {
             .from("student_competency_progress")
             .select("competency_id, pct")
             .eq("student_id", uid)
-            .returns<ProgressRow[]>(),
+            .returns<CompetencyProgressRef[]>(),
 
           // All competencies — id, difficulty, tags UUID[]
           supabase
             .from("competencies")
             .select("id, difficulty, tags")
-            .returns<CompetencyRow[]>(),
+            .returns<CompetencyDiffRef[]>(),
 
           // Tag uuid -> name lookup table
           supabase

@@ -26,7 +26,7 @@ import {
 type StatusFilter = "all" | "available" | "enrolled" | "completed";
 
 // Resolved competency with tag names instead of UUIDs
-type Competency = CompetencyRow & { tagNames: string[] };
+type ResolvedCompetency = CompetencyRow & { tagNames: string[] };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ export default function TraineeCompetenciesPage() {
   const [uid, setUid] = useState<string | null>(null);
 
   // Data
-  const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [competencies, setCompetencies] = useState<ResolvedCompetency[]>([]);
   const [tagOptions, setTagOptions] = useState<TagRow[]>([]);
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
   const [progressMap, setProgressMap] = useState<Map<string, ProgressRow>>(
@@ -66,7 +66,7 @@ export default function TraineeCompetenciesPage() {
   );
 
   // Selected competency for detail panel
-  const [selected, setSelected] = useState<Competency | null>(null);
+  const [selected, setSelected] = useState<ResolvedCompetency | null>(null);
 
   // Per-row optimistic loading states
   const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
@@ -150,7 +150,7 @@ export default function TraineeCompetenciesPage() {
         setTagOptions(tags ?? []);
 
         // Resolve tag UUIDs to names in each competency
-        const resolved: Competency[] = (comps ?? []).map((c) => ({
+        const resolved: ResolvedCompetency[] = (comps ?? []).map((c) => ({
           ...c,
           tagNames: (c.tags ?? [])
             .map((id) => tMap.get(id))
@@ -799,7 +799,7 @@ function CompetencyDetailPanel({
   onUnenroll,
   onClose,
 }: {
-  competency: Competency;
+  competency: ResolvedCompetency;
   status: StatusFilter;
   progress: ProgressRow | undefined;
   enrolling: boolean;
