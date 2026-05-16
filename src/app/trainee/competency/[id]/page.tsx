@@ -26,7 +26,6 @@ type Option = {
   id: string;
   question_id: string;
   body: string;
-  is_correct: boolean; // never shown to trainee
 };
 
 type Answer = {
@@ -37,19 +36,6 @@ type Answer = {
 };
 
 type OptionsByQ = Record<string, Option[]>;
-
-/* --------------------- Theme tokens ---------------------- */
-const ACCENT = "var(--accent)";
-const FG = "var(--foreground)";
-const SURFACE = "var(--surface)";
-const BORDER = "var(--border)";
-const MUTED = "var(--muted)";
-
-// softer/muted text via color-mix so it adapts to light/dark automatically
-const muted = (ratio = 55) =>
-  `color-mix(in srgb, var(--foreground) ${
-    100 - ratio
-  }%, transparent ${ratio}%)`;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -153,7 +139,7 @@ export default function TraineeCompetencyPage() {
           const ids = list.map((q) => q.id);
           const { data: opts, error: oerr } = await supabase
             .from("question_options")
-            .select("id, question_id, body, is_correct")
+            .select("id, question_id, body")
             .in("question_id", ids)
             .returns<Option[]>();
           if (oerr) throw oerr;
@@ -276,211 +262,164 @@ export default function TraineeCompetencyPage() {
 
   /* -------------------- Render -------------------- */
   return (
-    // Global header/footer come from layout — we render only page content
-    <main className="bg-[var(--background)] text-[var(--foreground)] transition-colors">
-      {/* Page hero */}
-      <section className="mx-auto max-w-5xl px-6 pt-8 pb-5">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          {competency ? competency.name : "Loading…"}
-        </h1>
-        <div className="accent-underline mt-3" />
-        <p className="mt-2 text-sm md:text-base" style={{ color: MUTED }}>
-          {competency?.difficulty ?? "—"}
-        </p>
-
-        {/* right-aligned progress on wide screens */}
-        <div className="mt-4 md:mt-0 md:float-right md:ml-6 md:w-60">
+    <main className="px-8 py-8 max-w-6xl mx-auto">
+      {/* Hero */}
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <h1
+            className="text-3xl font-bold tracking-tight text-[var(--foreground)]"
+            style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+          >
+            {competency ? competency.name : "Loading…"}
+          </h1>
+          <div className="accent-underline mt-3" />
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            {competency?.difficulty ?? "—"}
+          </p>
+        </div>
+        <div className="md:w-60 md:flex-shrink-0">
           <Progress pct={pct} />
         </div>
-      </section>
+      </div>
 
-      <hr
-        className="border-0 h-[1px] mx-auto max-w-5xl"
-        style={{
-          background: `color-mix(in oklab, ${ACCENT} 20%, transparent)`,
-        }}
-      />
+      {/* Answered count */}
+      <div className="mb-4 text-sm text-[var(--muted)]">
+        {answeredCount}/{total} answered • {pct}%
+      </div>
 
-      {/* Body */}
-      <section className="mx-auto max-w-5xl px-6 py-6 clear-both">
-        {/* Top line: answered count */}
-        <div className="mb-4 text-sm" style={{ color: muted(45) }}>
-          {answeredCount}/{total} answered • {pct}%
+      {err && (
+        <div className="mb-4 rounded-2xl border border-[color:var(--err)]/30 bg-[color:var(--err)]/10 px-4 py-3 text-sm text-[var(--err)]">
+          {err}
         </div>
+      )}
 
-        {err && (
-          <div
-            className="mb-4 rounded-xl px-4 py-3 text-sm"
-            style={{
-              border: "1px solid #f199a2",
-              background:
-                "color-mix(in srgb, var(--foreground) 4%, transparent 96%)",
-              color: "#9b1c2e",
-            }}
-          >
-            {err}
-          </div>
-        )}
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-24 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse"
+            />
+          ))}
+        </div>
+      ) : questions.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+          No questions have been added to this competency yet.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {questions.map((q, idx) => {
+            const a = answers[q.id];
+            const isCorrect = a?.is_correct === true;
+            const isWrong = a?.is_correct === false;
+            const opts = optionsByQ[q.id] ?? [];
 
-        {loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-24 rounded-xl animate-pulse"
-                style={{ border: `1px solid ${BORDER}`, background: SURFACE }}
-              />
-            ))}
-          </div>
-        ) : questions.length === 0 ? (
-          <div
-            className="rounded-xl p-5"
-            style={{ border: `1px solid ${BORDER}`, background: SURFACE }}
-          >
-            <p className="text-sm" style={{ color: muted(40) }}>
-              No questions have been added to this competency yet.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {questions.map((q, idx) => {
-              const a = answers[q.id];
-              const isCorrect = a?.is_correct === true;
-              const isWrong = a?.is_correct === false;
-              const opts = optionsByQ[q.id] ?? [];
-
-              return (
-                <article
-                  key={q.id}
-                  ref={(el) => {
-                    qRefs.current[q.id] = el;
-                  }}
-                  className="rounded-xl p-4"
-                  style={{ border: `1px solid ${BORDER}`, background: SURFACE }}
-                >
-                  {/* Header row */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs" style={{ color: muted(55) }}>
-                        Question {idx + 1}
-                      </div>
-                      <div className="mt-1">{q.body}</div>
+            return (
+              <article
+                key={q.id}
+                ref={(el) => {
+                  qRefs.current[q.id] = el;
+                }}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Question {idx + 1}
                     </div>
-
-                    <span
-                      className="rounded-full px-2 py-1 text-[11px] font-semibold border"
-                      style={
-                        isCorrect
-                          ? {
-                              background: "#34d399",
-                              color: "#0b0b0b",
-                              borderColor: "#34d399",
-                            }
-                          : isWrong
-                            ? {
-                                background: "#fb7185",
-                                color: "#0b0b0b",
-                                borderColor: "#fb7185",
-                              }
-                            : { borderColor: BORDER, color: muted(35) }
-                      }
-                    >
-                      {isCorrect ? "Correct" : isWrong ? "Wrong" : "Unanswered"}
-                    </span>
+                    <p className="mt-2 text-sm font-medium text-[var(--foreground)] leading-snug">
+                      {q.body}
+                    </p>
                   </div>
+                  <span
+                    className={
+                      isCorrect
+                        ? "flex-shrink-0 rounded-full border border-[color:var(--ok)]/35 bg-[color:var(--ok)]/12 px-2.5 py-0.5 text-[11px] font-semibold text-[var(--ok)]"
+                        : isWrong
+                          ? "flex-shrink-0 rounded-full border border-[color:var(--err)]/35 bg-[color:var(--err)]/12 px-2.5 py-0.5 text-[11px] font-semibold text-[var(--err)]"
+                          : "flex-shrink-0 rounded-full border border-[var(--border)] bg-[var(--field)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--muted)]"
+                    }
+                  >
+                    {isCorrect ? "Correct" : isWrong ? "Wrong" : "Unanswered"}
+                  </span>
+                </div>
 
-                  {/* Answer UI */}
-                  <div className="mt-3">
-                    {opts.length > 0 ? (
-                      // --- MCQ ---
-                      <div className="space-y-2">
-                        {opts.map((o) => (
+                {/* Answer UI */}
+                <div className="mt-4">
+                  {opts.length > 0 ? (
+                    <div className="space-y-2">
+                      {opts.map((o) => {
+                        const isSelected = choice[q.id] === o.id;
+                        return (
                           <label
                             key={o.id}
-                            className="flex items-start gap-2 rounded-lg p-3 cursor-pointer"
-                            style={{
-                              border: `1px solid ${BORDER}`,
-                              background: SURFACE,
-                            }}
+                            className={
+                              "flex items-start gap-3 rounded-xl border bg-[var(--field)] px-3 py-2.5 cursor-pointer transition-colors " +
+                              (isCorrect || savingQ === q.id
+                                ? "cursor-default "
+                                : "hover:border-[color:var(--accent)]/60 ") +
+                              (isSelected
+                                ? "border-[color:var(--accent)]/60"
+                                : "border-[var(--border)]")
+                            }
                           >
                             <input
                               type="radio"
                               name={`q_${q.id}`}
-                              className="mt-1"
+                              className="mt-1 accent-[color:var(--accent)]"
                               value={o.id}
                               disabled={isCorrect || savingQ === q.id}
-                              checked={choice[q.id] === o.id}
+                              checked={isSelected}
                               onChange={() =>
-                                setChoice((prev) => ({ ...prev, [q.id]: o.id }))
+                                setChoice((prev) => ({
+                                  ...prev,
+                                  [q.id]: o.id,
+                                }))
                               }
                             />
-                            <div>
-                              <div className="text-sm" style={{ color: FG }}>
-                                {o.body}
-                              </div>
-                            </div>
+                            <span className="text-sm text-[var(--foreground)] leading-snug">
+                              {o.body}
+                            </span>
                           </label>
-                        ))}
+                        );
+                      })}
 
-                        <div className="flex justify-end">
+                      {!isCorrect && (
+                        <div className="mt-3 flex justify-end">
                           <button
+                            type="button"
                             onClick={() => submitMCQ(q.id)}
                             disabled={
-                              isCorrect || !choice[q.id] || savingQ === q.id
+                              !choice[q.id] || savingQ === q.id || isCorrect
                             }
-                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition"
-                            style={{
-                              border: `1px solid ${BORDER}`,
-                              background: SURFACE,
-                              color: choice[q.id] ? FG : muted(40),
-                              boxShadow: choice[q.id]
-                                ? "0 8px 24px rgba(81,112,255,0.18)"
-                                : "none",
-                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                            style={{ background: "var(--accent)" }}
                           >
-                            {isCorrect ? "Saved" : "Submit answer"}
-                            {!isCorrect && (
-                              <span
-                                aria-hidden
-                                className="inline-block"
-                                style={{ color: ACCENT }}
-                              >
-                                →
-                              </span>
-                            )}
+                            {savingQ === q.id ? "Submitting…" : "Submit answer"}
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      // --- MCQ only: options not configured ---
-                      <div
-                        className="rounded-lg p-3 text-sm"
-                        style={{
-                          border: `1px solid ${BORDER}`,
-                          background:
-                            "color-mix(in srgb, var(--foreground) 4%, transparent 96%)",
-                          color: muted(40),
-                        }}
-                      >
-                        This question is not available yet (no answer options
-                        configured).
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Timestamp/status */}
-                  {a && (
-                    <div className="mt-3 text-xs" style={{ color: muted(50) }}>
-                      Saved {new Date(a.answered_at).toLocaleString()} •{" "}
-                      {a.is_correct ? "Correct" : "Wrong"}
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--field)] px-3 py-2.5 text-sm text-[var(--muted)]">
+                      This question is not available yet (no answer options
+                      configured).
                     </div>
                   )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                </div>
+
+                {a && (
+                  <div className="mt-3 text-xs text-[var(--muted)]">
+                    Saved {new Date(a.answered_at).toLocaleString()} •{" "}
+                    {a.is_correct ? "Correct" : "Wrong"}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
@@ -489,24 +428,15 @@ export default function TraineeCompetencyPage() {
 function Progress({ pct }: { pct: number }) {
   return (
     <div>
-      <div className="mb-1 text-xs" style={{ color: muted(50) }}>
-        Progress
+      <div className="mb-1.5 flex items-center justify-between text-xs text-[var(--muted)]">
+        <span>Progress</span>
+        <span>{pct}%</span>
       </div>
-      <div
-        className="h-2 rounded-full overflow-hidden"
-        style={{ background: `color-mix(in srgb, ${ACCENT} 20%, transparent)` }}
-      >
+      <div className="h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
         <div
-          className="h-2"
-          style={{
-            width: `${pct}%`,
-            transition: "width .25s ease",
-            background: ACCENT, // light blue bar
-          }}
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, background: "var(--accent)" }}
         />
-      </div>
-      <div className="mt-1 text-right text-xs" style={{ color: muted(50) }}>
-        {pct}%
       </div>
     </div>
   );
