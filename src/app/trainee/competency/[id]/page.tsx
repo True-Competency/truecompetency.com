@@ -26,7 +26,6 @@ type Option = {
   id: string;
   question_id: string;
   body: string;
-  is_correct: boolean; // never shown to trainee
 };
 
 type Answer = {
@@ -153,7 +152,7 @@ export default function TraineeCompetencyPage() {
           const ids = list.map((q) => q.id);
           const { data: opts, error: oerr } = await supabase
             .from("question_options")
-            .select("id, question_id, body, is_correct")
+            .select("id, question_id, body")
             .in("question_id", ids)
             .returns<Option[]>();
           if (oerr) throw oerr;
